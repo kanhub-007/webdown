@@ -188,6 +188,11 @@ async def _process_page(page: object, url: str) -> str:
         except Exception:
             pass
         await _scroll_to_bottom(page)
+        try:
+            await page.wait_for_load_state("networkidle", timeout=15000)
+            logger.debug("PLAYWRIGHT: Network idle after scroll (GitBook)")
+        except Exception:
+            logger.debug("PLAYWRIGHT: Network idle timeout — continuing anyway (GitBook)")
         html = await page.content()
         logger.debug("PLAYWRIGHT: Got HTML (%d chars)", len(html))
         return html
@@ -203,6 +208,12 @@ async def _process_page(page: object, url: str) -> str:
         pass
     await _scroll_to_bottom(page)
     await _handle_consent(page)
+
+    try:
+        await page.wait_for_load_state("networkidle", timeout=15000)
+        logger.debug("PLAYWRIGHT: Network idle after scroll")
+    except Exception:
+        logger.debug("PLAYWRIGHT: Network idle timeout — continuing anyway")
 
     html = await page.content()
     logger.debug("PLAYWRIGHT: Got HTML (%d chars)", len(html))
