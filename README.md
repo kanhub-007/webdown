@@ -1,6 +1,6 @@
 # WebDown — High-Fidelity Website to Markdown
 
-**Convert any website to clean, structured Markdown — with real browser rendering, intelligent table handling, and smart cookie consent navigation.**
+**Convert any website to clean, structured Markdown — with real browser rendering, intelligent table handling, smart cookie consent navigation, and built-in RSS feed aggregation from crypto & AI news sources.**
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.12+-blue" alt="Python 3.12+">
@@ -12,7 +12,7 @@
 
 ## Why WebDown?
 
-Most HTML-to-Markdown tools do a poor job on real-world documentation sites. They fail on tables, get confused by cookie walls, miss JavaScript-rendered content, and produce inconsistent heading structures. **WebDown is different.**
+Most HTML-to-Markdown tools do a poor job on real-world documentation sites. They fail on tables, get confused by cookie walls, miss JavaScript-rendered content, and produce inconsistent heading structures. Worse, none of them also aggregate RSS feeds from your favorite news sources. **WebDown is different.**
 
 ### 🎯 What Makes It Better
 
