@@ -589,7 +589,7 @@ def extract_markdown_from_html(html_content: str, base_url: str) -> str:
     output_lines.append(f"# {breadcrumb_title}")
     output_lines.append("")
 
-    main_content = soup.find("article") or soup.find("main") or soup.find("body")
+    main_content = soup.find("main") or soup.find("article") or soup.find("body")
     if not main_content:
         main_content = soup
 
