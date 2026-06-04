@@ -483,6 +483,8 @@ def _extract_li_text_without_code(element: Tag, base_url: str) -> str:
 def _is_last_updated_element(node: Tag) -> bool:
     """Detect 'Last updated'/'Last modified' footer badges."""
     try:
+        if not isinstance(node, Tag):
+            return False
         if not hasattr(node, "get_text"):
             return False
         text = (node.get_text(" ", strip=True) or "").lower()
@@ -511,6 +513,8 @@ def _is_last_updated_element(node: Tag) -> bool:
 def _is_breadcrumb_nav(node: Tag) -> bool:
     """Detect breadcrumb containers."""
     try:
+        if not isinstance(node, Tag):
+            return False
         name = getattr(node, "name", "").lower()
         if name not in ("nav", "ul", "ol", "div"):
             return False
@@ -616,6 +620,8 @@ def extract_markdown_from_html(html_content: str, base_url: str) -> str:
             _mark_processed(element, processed)
             continue
         if _has_alert_ancestor(element):
+            continue
+        if not isinstance(element, Tag):
             continue
 
         is_alert, _, _, _ = detect_alert_type(element)
