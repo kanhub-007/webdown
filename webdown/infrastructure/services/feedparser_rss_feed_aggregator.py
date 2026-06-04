@@ -1,9 +1,12 @@
 """RSS feed aggregation service backed by feedparser and httpx."""
 
+import json
+import logging
 import re
 import time
 from datetime import datetime, timezone
 from html import unescape
+from pathlib import Path
 
 import feedparser
 import httpx
@@ -12,13 +15,32 @@ from cachetools import TTLCache
 from webdown.core.domain.entities.feed_item import FeedItem
 from webdown.core.domain.interfaces.rss_feed_aggregator import RssFeedAggregator
 
-FEEDS = [
+logger = logging.getLogger(__name__)
+
+_DEFAULT_FEEDS = [
     {"name": "Bloomberg", "url": "https://feeds.bloomberg.com/crypto/news.rss"},
     {"name": "ZeroHedge", "url": "https://cms.zerohedge.com/fullrss2.xml"},
     {"name": "Huggingface Blog", "url": "https://huggingface.co/blog/feed.xml"},
-    {"name": "Google blog", "url": "https://blog.google/technology/ai/rss/"},
-    {"name": "Thechnology review", "url": "https://www.technologyreview.com/topic/artificial-intelligence/feed/"},
+    {"name": "Google AI Blog", "url": "https://blog.google/technology/ai/rss/"},
+    {"name": "MIT Technology Review", "url": "https://www.technologyreview.com/topic/artificial-intelligence/feed/"},
 ]
+
+
+def _load_feeds() -> list[dict[str, str]]:
+    """Load feed configuration from feeds.json, falling back to defaults."""
+    config_path = Path(__file__).parent.parent.parent.parent / "feeds.json"
+    try:
+        with open(config_path, encoding="utf-8") as f:
+            feeds = json.load(f)
+        if isinstance(feeds, list) and all("name" in f and "url" in f for f in feeds):
+            logger.info("Loaded %d feeds from %s", len(feeds), config_path)
+            return feeds
+    except (FileNotFoundError, json.JSONDecodeError, OSError) as exc:
+        logger.warning("Could not load feeds.json (%s), using defaults", exc)
+    return _DEFAULT_FEEDS
+
+
+FEEDS = _load_feeds()
 
 headers = {
     "User-Agent": "Feedly/1.0 (+http://www.feedly.com/fetcher.html; like FeedFetcher-Google)",

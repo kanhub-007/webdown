@@ -105,7 +105,7 @@ Get detailed metadata for a file including sitemap URLs.
 
 #### `GET /api/rss/aggregate`
 
-Aggregate RSS feeds from Bloomberg, ZeroHedge, Huggingface Blog, Google AI Blog, and MIT Technology Review.
+Aggregate RSS feeds from sources configured in feeds.json.
 
 ```bash
 curl http://localhost:8000/rss/api/rss/aggregate

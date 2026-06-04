@@ -46,8 +46,8 @@ def register_rss_tools(server: object) -> None:
 
     @server.tool(
         description=(
-            "Aggregate RSS feeds from cryptocurrency and AI news sources "
-            "(Bloomberg, ZeroHedge, Huggingface Blog, Google AI Blog, MIT Technology Review). "
+            "Aggregate RSS feeds from cryptocurrency and AI news sources. "
+            "Sources are configured in feeds.json at the project root. "
             "Returns deduplicated articles sorted newest-first with 5-minute caching. "
             "Use published_after to filter by time: ISO 8601 datetime (2026-06-01T00:00:00Z) "
             "or relative shortcuts: 24h, 7d, 1w, 30d, 1m."

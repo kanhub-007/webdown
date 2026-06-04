@@ -33,9 +33,9 @@ async def get_aggregated_feeds(
 ):
     """Aggregate RSS feeds from multiple news sources.
 
-    Pulls from Bloomberg, ZeroHedge, Huggingface Blog, Google AI Blog, and
-    MIT Technology Review. Articles are deduplicated by URL and sorted newest
-    first. Results are cached for 5 minutes when no date filter is applied.
+    Sources are configured in feeds.json at the project root. Articles are
+    deduplicated by URL and sorted newest first. Results are cached for 5
+    minutes when no date filter is applied.
     """
     feed_items = await use_case.execute(published_after=published_after)
     return presenter.to_response(feed_items)
