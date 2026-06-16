@@ -144,8 +144,6 @@ def test_real_filesystem_writer_writes_and_overwrites_disk(tmp_path) -> None:
 
 def test_split_per_page_writes_one_file_per_page(tmp_path) -> None:
     """S5 (Slice 2): split_per_page writes one .md per page from stored per-page markdown."""
-    from pathlib import Path
-
     from webdown.core.domain.entities.page_conversion_status import PageConversionStatus
     from webdown.infrastructure.services.file_system_markdown_file_writer import (
         FileSystemMarkdownFileWriter,

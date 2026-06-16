@@ -9,7 +9,6 @@ regression. If it ever fails, THAT is the signal to hunt the metadata bug.
 """
 
 import webdown.infrastructure.services.requests_sitemap_discovery_service as discovery_mod
-from webdown.core.domain.entities.sitemap_url import SitemapUrl
 from webdown.infrastructure.services.requests_sitemap_discovery_service import (
     RequestsSitemapDiscoveryService,
 )
