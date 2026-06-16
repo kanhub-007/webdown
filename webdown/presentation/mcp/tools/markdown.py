@@ -223,7 +223,8 @@ def register_markdown_tools(server: object) -> None:
             "Save a completed conversion's Markdown to a .md FILE on disk and return only "
             "the path and byte size (not the content). Use this instead of download_markdown "
             "for large conversions to avoid shipping megabytes through the response. "
-            "output_path defaults to data/output/{job_id}.md. split_per_page is not yet supported."
+            "output_path defaults to data/output/{job_id}.md. Set split_per_page=True to write "
+            "one .md per successful page into output_path (a directory)."
         ),
     )
     def save_markdown_to_file(

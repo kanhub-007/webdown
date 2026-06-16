@@ -140,3 +140,48 @@ def test_real_filesystem_writer_writes_and_overwrites_disk(tmp_path) -> None:
     second = use_case.execute(SaveMarkdownToFileRequest(job_id="J"))
     assert (tmp_path / "J.md").read_text(encoding="utf-8") == "# Replaced"
     assert second.size_bytes == len("# Replaced".encode("utf-8"))
+
+
+def test_split_per_page_writes_one_file_per_page(tmp_path) -> None:
+    """S5 (Slice 2): split_per_page writes one .md per page from stored per-page markdown."""
+    from pathlib import Path
+
+    from webdown.core.domain.entities.page_conversion_status import PageConversionStatus
+    from webdown.infrastructure.services.file_system_markdown_file_writer import (
+        FileSystemMarkdownFileWriter,
+    )
+    from tests.test_application._fakes import InMemoryPageErrorRepository
+
+    page_error_repo = InMemoryPageErrorRepository()
+    page_error_repo.save_many("J", [
+        PageConversionStatus(url="https://x.com/p/a", status="success", markdown="# A\n\nbody a"),
+        PageConversionStatus(url="https://x.com/p/b", status="failed", error="boom"),
+        PageConversionStatus(url="https://x.com/p/c", status="success", markdown="# C\n\nbody c"),
+    ])
+    use_case = SaveMarkdownToFileUseCase(
+        InMemoryMarkdownFileRepository(),
+        FileSystemMarkdownFileWriter(),
+        output_dir=tmp_path,
+        page_error_repository=page_error_repo,
+    )
+
+    out_dir = tmp_path / "site"
+    result = use_case.execute(
+        SaveMarkdownToFileRequest(job_id="J", output_path=str(out_dir), split_per_page=True)
+    )
+
+    assert result.pages_written == 2
+    written = {p.name: p.read_text(encoding="utf-8") for p in out_dir.glob("*.md")}
+    assert set(written) == {"a.md", "c.md"}
+    assert "body a" in written["a.md"]
+    assert "body c" in written["c.md"]
+
+
+def test_split_per_page_without_per_page_repo_raises_not_implemented(tmp_path) -> None:
+    """split_per_page with no per-page storage wired must refuse cleanly."""
+    file_repo = InMemoryMarkdownFileRepository()
+    file_repo.save_markdown_file(_markdown_file("J", "# Hi"))
+    use_case = SaveMarkdownToFileUseCase(file_repo, _RecordingWriter(), output_dir=tmp_path)
+
+    with pytest.raises(NotImplementedError):
+        use_case.execute(SaveMarkdownToFileRequest(job_id="J", split_per_page=True))

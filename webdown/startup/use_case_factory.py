@@ -81,6 +81,7 @@ def create_save_markdown_to_file_use_case() -> SaveMarkdownToFileUseCase:
         create_markdown_file_repository(),
         create_markdown_file_writer(),
         output_dir=default_output,
+        page_error_repository=create_page_error_repository(),
     )
 
 
