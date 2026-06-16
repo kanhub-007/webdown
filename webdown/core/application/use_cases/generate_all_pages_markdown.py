@@ -10,12 +10,14 @@ to enable per-page export and resume.
 
 import logging
 import time
+import traceback
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from webdown.core.domain.entities.markdown_file import MarkdownFile
 from webdown.core.domain.entities.page_conversion_status import PageConversionStatus
 from webdown.core.domain.entities.sitemap_url import SitemapUrl
+from webdown.core.domain.interfaces.crash_artifact_writer import CrashArtifactWriter
 from webdown.core.domain.interfaces.html_to_markdown_converter import HtmlToMarkdownConverter
 from webdown.core.domain.interfaces.markdown_file_repository import MarkdownFileRepository
 from webdown.core.domain.interfaces.markdown_job_repository import MarkdownJobRepository
@@ -37,6 +39,7 @@ class GenerateAllPagesMarkdownUseCase:
         page_renderer: PageRenderer,
         html_to_markdown_converter: HtmlToMarkdownConverter,
         page_error_repository: PageErrorRepository,
+        crash_artifact_writer: CrashArtifactWriter | None = None,
     ) -> None:
         self._job_repository = job_repository
         self._file_repository = file_repository
@@ -44,6 +47,7 @@ class GenerateAllPagesMarkdownUseCase:
         self._page_renderer = page_renderer
         self._html_to_markdown_converter = html_to_markdown_converter
         self._page_error_repository = page_error_repository
+        self._crash_artifact_writer = crash_artifact_writer
 
     def execute(
         self,
@@ -54,14 +58,18 @@ class GenerateAllPagesMarkdownUseCase:
         blacklist_patterns: list[str] | None,
         ip_address: str,
         resume: bool = False,
+        capture_artifacts: bool = False,
     ) -> None:
         """Generate combined Markdown for sitemap-discovered pages.
 
         With resume=True, pages already converted successfully for this base_url
         are skipped (not re-rendered), and the combined output is regenerated
         from all host successes (prior + newly rendered).
+        With capture_artifacts=True, converter exceptions save the offending
+        HTML + traceback for later debugging (requires a crash_artifact_writer).
         """
         start_time = time.time()
+        capture = capture_artifacts and self._crash_artifact_writer is not None
         try:
             discovered_urls, website_pages = self._discover_pages(
                 base_url, max_pages, whitelist_patterns, blacklist_patterns, job_id
@@ -77,7 +85,7 @@ class GenerateAllPagesMarkdownUseCase:
 
             # Render + convert only the pages that still need it.
             html_results = self._render_pages(to_render, job_id, len(discovered_urls))
-            results = self._convert_pages(to_render, html_results, job_id, len(discovered_urls))
+            results = self._convert_pages(to_render, html_results, job_id, len(discovered_urls), capture)
             self._page_error_repository.save_many(job_id, results)
 
             # Combined output: on resume, all host successes (regenerated); else
@@ -158,19 +166,24 @@ class GenerateAllPagesMarkdownUseCase:
         html_results: dict[str, str | None],
         job_id: str,
         total_pages: int,
+        capture: bool = False,
     ) -> list[PageConversionStatus]:
         """Convert rendered HTML pages to per-page conversion statuses."""
         inputs = [(url, html_results.get(url)) for url in page_urls]
         results: list[PageConversionStatus] = []
 
         with ThreadPoolExecutor() as executor:
-            for index, status in enumerate(executor.map(self._convert_one_page, inputs)):
+            for index, status in enumerate(
+                executor.map(self._convert_one_page, inputs, [capture] * len(inputs), [job_id] * len(inputs))
+            ):
                 results.append(status)
                 progress = int(total_pages * 0.5) + (index + 1) * 0.5
                 self._job_repository.update_job_progress(job_id, int(progress), "processing")
         return results
 
-    def _convert_one_page(self, args: tuple[str, str | None]) -> PageConversionStatus:
+    def _convert_one_page(
+        self, args: tuple[str, str | None], capture: bool = False, job_id: str = ""
+    ) -> PageConversionStatus:
         """Convert a single rendered page into a PageConversionStatus (never raises)."""
         url, html = args
         if not html:
@@ -180,7 +193,14 @@ class GenerateAllPagesMarkdownUseCase:
         except Exception as error:
             message = f"Error converting {url}: {error}"
             logger.error(message)
-            return PageConversionStatus(url=url, status="failed", error=message)
+            artifact_path = None
+            if capture and self._crash_artifact_writer is not None:
+                artifact_path = self._crash_artifact_writer.write(
+                    job_id, url, html, traceback.format_exc()
+                )
+            return PageConversionStatus(
+                url=url, status="failed", error=message, artifact_path=artifact_path
+            )
         if not markdown or not markdown.strip():
             return PageConversionStatus(
                 url=url, status="failed", error=f"Conversion resulted in empty markdown for {url}"

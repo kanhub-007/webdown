@@ -58,6 +58,7 @@ def test_start_all_pages_markdown_job() -> None:
         blacklist: list[str] | None,
         ip: str,
         resume: bool = False,
+        capture_artifacts: bool = False,
     ) -> None:
         """Represent background execution."""
 
@@ -75,7 +76,7 @@ def test_start_all_pages_markdown_job() -> None:
     assert result.job_id is not None
     assert created_jobs == [(result.job_id, 0)]
     assert len(submissions) == 1
-    assert submissions[0][1] == (result.job_id, "https://example.com", 5, ["docs"], None, "10.0.0.1", False)
+    assert submissions[0][1] == (result.job_id, "https://example.com", 5, ["docs"], None, "10.0.0.1", False, False)
 
 
 def test_start_github_repo_markdown_job() -> None:

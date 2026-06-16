@@ -7,6 +7,7 @@ from webdown.infrastructure.services.beautifulsoup_html_to_markdown_converter im
 )
 from webdown.infrastructure.services.ddgs_web_search_service import DDGSWebSearchService
 from webdown.infrastructure.services.feedparser_rss_feed_aggregator import FeedparserRssFeedAggregator
+from webdown.infrastructure.services.file_system_crash_artifact_writer import FileSystemCrashArtifactWriter
 from webdown.infrastructure.services.file_system_markdown_file_writer import FileSystemMarkdownFileWriter
 from webdown.infrastructure.services.gitingest_github_repository_processor import GitingestGitHubRepositoryProcessor
 from webdown.infrastructure.services.playwright_page_renderer import PlaywrightPageRenderer
@@ -60,3 +61,8 @@ def create_web_search_service() -> DDGSWebSearchService:
 def create_markdown_file_writer() -> FileSystemMarkdownFileWriter:
     """Create the filesystem markdown export writer."""
     return FileSystemMarkdownFileWriter()
+
+
+def create_crash_artifact_writer(debug_dir) -> FileSystemCrashArtifactWriter:
+    """Create the crash-artifact writer for a given debug directory."""
+    return FileSystemCrashArtifactWriter(debug_dir)

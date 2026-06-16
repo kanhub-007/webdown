@@ -23,6 +23,7 @@ from webdown.startup.repository_factory import (
     create_page_error_repository,
 )
 from webdown.startup.service_factory import (
+    create_crash_artifact_writer,
     create_github_repository_processor,
     create_html_to_markdown_converter,
     create_markdown_file_writer,
@@ -88,6 +89,11 @@ def create_save_markdown_to_file_use_case() -> SaveMarkdownToFileUseCase:
 @lru_cache(maxsize=1)
 def create_generate_all_pages_markdown_use_case() -> GenerateAllPagesMarkdownUseCase:
     """Create the all-pages markdown generation use case."""
+    from pathlib import Path
+
+    import os
+
+    debug_dir = Path(os.getenv("DEBUG_DIR", str(Path(__file__).resolve().parents[2] / "data" / "debug")))
     return GenerateAllPagesMarkdownUseCase(
         create_markdown_job_repository(),
         create_markdown_file_repository(),
@@ -95,6 +101,7 @@ def create_generate_all_pages_markdown_use_case() -> GenerateAllPagesMarkdownUse
         create_page_renderer(),
         create_html_to_markdown_converter(),
         create_page_error_repository(),
+        crash_artifact_writer=create_crash_artifact_writer(debug_dir),
     )
 
 

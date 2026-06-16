@@ -139,6 +139,7 @@ def register_markdown_tools(server: object) -> None:
         whitelist_patterns: str | None = None,
         blacklist_patterns: str | None = None,
         resume: bool = False,
+        capture_artifacts: bool = False,
     ) -> dict:
         """Convert all pages from a website sitemap to Markdown."""
         whitelist = [p.strip() for p in whitelist_patterns.split(",") if p.strip()] if whitelist_patterns else None
@@ -152,6 +153,7 @@ def register_markdown_tools(server: object) -> None:
                 whitelist_patterns=whitelist,
                 blacklist_patterns=blacklist,
                 resume=resume,
+                capture_artifacts=capture_artifacts,
             ),
             ip_address="mcp",
             background_processor=ThreadBackgroundProcessor(),

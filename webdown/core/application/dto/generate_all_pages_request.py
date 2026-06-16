@@ -12,3 +12,4 @@ class GenerateAllPagesRequest:
     whitelist_patterns: list[str] | None = None
     blacklist_patterns: list[str] | None = None
     resume: bool = False
+    capture_artifacts: bool = False

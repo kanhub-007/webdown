@@ -41,5 +41,6 @@ class StartAllPagesMarkdownJobUseCase:
             request.blacklist_patterns,
             ip_address,
             request.resume,
+            request.capture_artifacts,
         )
         return JobResult(job_id=job_id)

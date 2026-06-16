@@ -218,3 +218,72 @@ def test_resume_skips_succeeded_urls_and_regenerates_combined_output() -> None:
     progress = job_repo.get_job_progress("J2")
     assert progress.status == "completed"  # all 3 discovered now succeeded
     assert progress.failed_pages == 0
+
+
+class _RecordingCrashWriter:
+    """In-memory crash artifact writer that records what it was asked to save."""
+
+    def __init__(self) -> None:
+        self.saved: dict[str, tuple[str, str, str]] = {}  # url -> (path, html, traceback)
+
+    def write(self, job_id: str, url: str, html: str, traceback_text: str) -> str:
+        path = f"debug/{job_id}/{url.rsplit('/', 1)[-1]}.html"
+        self.saved[url] = (path, html, traceback_text)
+        return path
+
+
+def test_crash_artifacts_captured_on_converter_exception() -> None:
+    """Slice 3: when capture_artifacts=True, a converter crash saves HTML + traceback."""
+
+    class _RaisingConverter(BeautifulSoupHtmlToMarkdownConverter):
+        def convert(self, html, base_url):
+            if base_url.endswith("/p/b"):
+                raise RuntimeError("boom")
+            return super().convert(html, base_url)
+
+    pages = [SitemapUrl(loc=f"{BASE}/p/a"), SitemapUrl(loc=f"{BASE}/p/b")]
+    crash_writer = _RecordingCrashWriter()
+    error_repo = InMemoryPageErrorRepository()
+    job_repo = InMemoryMarkdownJobRepository()
+    use_case = GenerateAllPagesMarkdownUseCase(
+        job_repo, InMemoryMarkdownFileRepository(), _FakeDiscovery(pages),
+        _FakeRenderer({
+            f"{BASE}/p/a": GOOD_HTML.format(title="A", body="Body of A."),
+            f"{BASE}/p/b": "<html>offending html for b</html>",
+        }),
+        _RaisingConverter(), error_repo, crash_artifact_writer=crash_writer,
+    )
+
+    job_repo.create_job("J", 0)
+    use_case.execute("J", BASE, 10, None, None, "mcp", capture_artifacts=True)
+
+    # The failing page's artifact was captured and referenced from its status.
+    assert f"{BASE}/p/b" in crash_writer.saved
+    path, html, tb = crash_writer.saved[f"{BASE}/p/b"]
+    assert "offending html for b" in html
+    assert "RuntimeError" in tb and "boom" in tb
+    assert path.endswith("b.html")
+    failed = [s for s in error_repo.get_by_job("J") if s.status == "failed"]
+    assert failed[0].artifact_path == path
+
+
+def test_crash_artifacts_not_captured_by_default() -> None:
+    """capture_artifacts defaults off — no files written, status still records the error."""
+
+    class _RaisingConverter(BeautifulSoupHtmlToMarkdownConverter):
+        def convert(self, html, base_url):
+            raise RuntimeError("always boom")
+
+    pages = [SitemapUrl(loc=f"{BASE}/p/b")]
+    crash_writer = _RecordingCrashWriter()
+    job_repo = InMemoryMarkdownJobRepository()
+    use_case = GenerateAllPagesMarkdownUseCase(
+        job_repo, InMemoryMarkdownFileRepository(), _FakeDiscovery(pages),
+        _FakeRenderer({f"{BASE}/p/b": "<html>x</html>"}),
+        _RaisingConverter(), InMemoryPageErrorRepository(), crash_artifact_writer=crash_writer,
+    )
+
+    job_repo.create_job("J", 0)
+    use_case.execute("J", BASE, 10, None, None, "mcp")  # capture_artifacts defaults False
+
+    assert crash_writer.saved == {}  # nothing captured
