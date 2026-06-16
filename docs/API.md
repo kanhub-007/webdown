@@ -4,6 +4,37 @@
 
 ### Web Index API — `/web-index`
 
+#### `POST /api/search`
+
+Search the web and return page URLs with titles and snippets.
+
+```bash
+curl -X POST http://localhost:8000/web-index/api/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "python async programming", "max_results": 5}'
+```
+
+**Request:**
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `query` | string | required | Search query (max 500 chars) |
+| `max_results` | int | 20 | Maximum results (1-50) |
+
+**Response:**
+```json
+{
+  "query": "python async programming",
+  "results": [
+    {"title": "Python's asyncio", "url": "https://...", "snippet": "Learn async..."}
+  ],
+  "total_count": 5
+}
+```
+
+Backed by DuckDuckGo (via the `ddgs` library). Rate-limited to ~10-20 req/min.
+
+---
+
 #### `POST /api/sitemap/explore`
 
 Discover all pages from a website sitemap.

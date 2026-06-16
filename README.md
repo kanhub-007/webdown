@@ -49,6 +49,11 @@ Most HTML-to-Markdown tools do a poor job on real-world documentation sites. The
 - ✅ **Lazy content loading** — scrolls to page bottom to trigger infinite scroll and deferred images
 - ✅ **Concurrent rendering** — process multiple pages in parallel with configurable concurrency
 
+### Discovery
+
+- ✅ **Web search** — search DuckDuckGo/Bing/Brave from within webdown; get URLs + snippets, then convert to Markdown
+- ✅ **Sitemap exploration** — discover every page from sitemap.xml and robots.txt
+
 ### Delivery
 
 | Feature | REST API | MCP Server | Streamlit UI |

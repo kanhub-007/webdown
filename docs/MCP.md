@@ -28,6 +28,7 @@ WEBDOWN_PORT=8002
 
 | Tool | Description |
 |------|-------------|
+| `search_web(query, max_results=20)` | Search the web and return URLs + snippets |
 | `explore_sitemap(base_url, max_pages=100)` | Discover all pages from a website sitemap |
 
 ### RSS
@@ -51,6 +52,7 @@ WEBDOWN_PORT=8002
 ### Example Calls
 
 ```
+search_web("python async best practices", max_results=5)
 explore_sitemap("https://docs.python.org", max_pages=50)
 convert_single_page("https://example.com/about")
 get_job_progress("550e8400-e29b-41d4-a716-446655440000")
@@ -79,6 +81,7 @@ run_mcp.py
     → bootstrap()                 (initialize SQLite)
     → create_server()             (FastMCP + tools)
       → webdown/presentation/mcp/server.py
+        → tools/search.py         (register_search_tools)
         → tools/sitemap.py        (register_sitemap_tools)
         → tools/rss.py            (register_rss_tools)
         → tools/markdown.py       (register_markdown_tools)
