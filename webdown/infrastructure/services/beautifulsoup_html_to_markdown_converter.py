@@ -168,11 +168,22 @@ def extract_text_with_links(element: Tag | NavigableString, base_url: str) -> st
                 text = child.get_text(strip=True)
                 if text:
                     next_sibling = child.next_sibling
-                    if next_sibling and hasattr(next_sibling, "__len__") and len(next_sibling) > 0:
-                        first_char = (
-                            str(next_sibling)[0] if isinstance(next_sibling, str) else next_sibling.get_text()[0]
-                        )
-                        if first_char and not first_char.isspace() and first_char not in ".,;:!?)":
+                    # Compute the sibling's text once and check it is non-empty
+                    # before indexing. Do NOT use ``len(next_sibling)`` as a guard:
+                    # for a BeautifulSoup Tag it counts *children*, not text length
+                    # (e.g. Substack headings append a decorative
+                    # <div class="header-anchor-parent"> whose children carry no
+                    # text, so len > 0 but get_text() == ""). ``next_sibling`` may
+                    # also be None when the bold run is the last child.
+                    if isinstance(next_sibling, str):
+                        sibling_text = str(next_sibling)
+                    elif next_sibling is not None:
+                        sibling_text = next_sibling.get_text()
+                    else:
+                        sibling_text = ""
+                    if sibling_text:
+                        first_char = sibling_text[0]
+                        if not first_char.isspace() and first_char not in ".,;:!?)":
                             result.append(" " + "**" + text + "** ")
                         else:
                             result.append("**" + text + "**")
