@@ -11,6 +11,7 @@ from webdown.core.application.use_cases import (
     GetJobProgressUseCase,
     GetMarkdownFileUseCase,
     ListMarkdownFilesUseCase,
+    SaveMarkdownToFileUseCase,
     SearchWebUseCase,
     StartAllPagesMarkdownJobUseCase,
     StartGitHubRepoMarkdownJobUseCase,
@@ -24,6 +25,7 @@ from webdown.startup.repository_factory import (
 from webdown.startup.service_factory import (
     create_github_repository_processor,
     create_html_to_markdown_converter,
+    create_markdown_file_writer,
     create_page_renderer,
     create_rss_feed_aggregator,
     create_sitemap_discovery_service,
@@ -65,6 +67,21 @@ def create_get_markdown_file_use_case() -> GetMarkdownFileUseCase:
 def create_list_markdown_files_use_case() -> ListMarkdownFilesUseCase:
     """Create the list markdown files use case."""
     return ListMarkdownFilesUseCase(create_markdown_file_repository())
+
+
+@lru_cache(maxsize=1)
+def create_save_markdown_to_file_use_case() -> SaveMarkdownToFileUseCase:
+    """Create the save-markdown-to-file export use case."""
+    from pathlib import Path
+
+    import os
+
+    default_output = Path(os.getenv("OUTPUT_DIR", str(Path(__file__).resolve().parents[2] / "data" / "output")))
+    return SaveMarkdownToFileUseCase(
+        create_markdown_file_repository(),
+        create_markdown_file_writer(),
+        output_dir=default_output,
+    )
 
 
 @lru_cache(maxsize=1)

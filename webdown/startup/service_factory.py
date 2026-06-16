@@ -7,6 +7,7 @@ from webdown.infrastructure.services.beautifulsoup_html_to_markdown_converter im
 )
 from webdown.infrastructure.services.ddgs_web_search_service import DDGSWebSearchService
 from webdown.infrastructure.services.feedparser_rss_feed_aggregator import FeedparserRssFeedAggregator
+from webdown.infrastructure.services.file_system_markdown_file_writer import FileSystemMarkdownFileWriter
 from webdown.infrastructure.services.gitingest_github_repository_processor import GitingestGitHubRepositoryProcessor
 from webdown.infrastructure.services.playwright_page_renderer import PlaywrightPageRenderer
 from webdown.infrastructure.services.requests_sitemap_discovery_service import RequestsSitemapDiscoveryService
@@ -53,3 +54,9 @@ def create_rss_feed_aggregator() -> FeedparserRssFeedAggregator:
 def create_web_search_service() -> DDGSWebSearchService:
     """Create the web search service."""
     return DDGSWebSearchService()
+
+
+@lru_cache(maxsize=1)
+def create_markdown_file_writer() -> FileSystemMarkdownFileWriter:
+    """Create the filesystem markdown export writer."""
+    return FileSystemMarkdownFileWriter()

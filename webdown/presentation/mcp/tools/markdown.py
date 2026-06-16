@@ -11,6 +11,7 @@ from webdown.startup.use_case_factory import (
     create_get_job_progress_use_case,
     create_get_markdown_file_use_case,
     create_list_markdown_files_use_case,
+    create_save_markdown_to_file_use_case,
     create_start_all_pages_markdown_job_use_case,
     create_start_github_repo_markdown_job_use_case,
     create_start_single_page_markdown_job_use_case,
@@ -31,7 +32,9 @@ def _usage_guide_text() -> str:
         "     OR convert_all_pages(base_url) — convert the entire site (for large sites)\n"
         "  4. get_job_progress(job_id) — track conversion progress\n"
         "  5. download_markdown(job_id) — get the generated Markdown content\n"
-        "  6. list_markdown_files() — see all previously generated files\n\n"
+        "  6. save_markdown_to_file(job_id) — write Markdown to a .md FILE, return path+size\n"
+        "     (prefer over download_markdown for large conversions)\n"
+        "  7. list_markdown_files() — see all previously generated files\n\n"
         "TOOLS REFERENCE\n"
         "  search_web(query, max_results=20)\n"
         "    Search the web and return page URLs with titles and snippets.\n"
@@ -54,6 +57,9 @@ def _usage_guide_text() -> str:
         "    Check how a conversion is progressing. Returns status, total/processed pages.\n\n"
         "  download_markdown(job_id)\n"
         "    Get the full Markdown content of a completed conversion.\n\n"
+        "  save_markdown_to_file(job_id, output_path=None, split_per_page=False)\n"
+        "    Write a completed conversion to a .md FILE on disk; return {path, size_bytes}.\n"
+        "    Use this (not download_markdown) for large conversions to avoid huge responses.\n\n"
         "  list_markdown_files()\n"
         "    See all previously generated files (metadata only, no content).\n\n"
         "  aggregate_rss_feeds(published_after=None)\n"
@@ -208,6 +214,41 @@ def register_markdown_tools(server: object) -> None:
                 for f in files
             ],
             "total": len(files),
+        }
+
+    @server.tool(
+        description=(
+            "Save a completed conversion's Markdown to a .md FILE on disk and return only "
+            "the path and byte size (not the content). Use this instead of download_markdown "
+            "for large conversions to avoid shipping megabytes through the response. "
+            "output_path defaults to data/output/{job_id}.md. split_per_page is not yet supported."
+        ),
+    )
+    def save_markdown_to_file(
+        job_id: str,
+        output_path: str | None = None,
+        split_per_page: bool = False,
+    ) -> dict:
+        """Write a stored markdown conversion to disk; return {path, size_bytes}."""
+        from webdown.core.application.dto.save_markdown_to_file_request import SaveMarkdownToFileRequest
+        from webdown.core.domain.exceptions import MarkdownFileNotFoundError
+
+        use_case = create_save_markdown_to_file_use_case()
+        try:
+            result = use_case.execute(
+                SaveMarkdownToFileRequest(
+                    job_id=job_id,
+                    output_path=output_path,
+                    split_per_page=split_per_page,
+                )
+            )
+        except MarkdownFileNotFoundError:
+            return {"error": "File not found", "job_id": job_id}
+        return {
+            "job_id": job_id,
+            "path": result.path,
+            "size_bytes": result.size_bytes,
+            "pages_written": result.pages_written,
         }
 
     @server.tool(description="Generate a unique job ID for tracking manual conversion operations.")
