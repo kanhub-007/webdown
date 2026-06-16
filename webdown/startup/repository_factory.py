@@ -6,6 +6,7 @@ from webdown.infrastructure.database.sqlite_schema_initializer import SqliteSche
 from webdown.infrastructure.repositories.sqlite_connection_factory import SqliteConnectionFactory
 from webdown.infrastructure.repositories.sqlite_markdown_file_repository import SqliteMarkdownFileRepository
 from webdown.infrastructure.repositories.sqlite_markdown_job_repository import SqliteMarkdownJobRepository
+from webdown.infrastructure.repositories.sqlite_page_error_repository import SqlitePageErrorRepository
 
 
 @lru_cache(maxsize=1)
@@ -30,3 +31,9 @@ def create_markdown_job_repository() -> SqliteMarkdownJobRepository:
 def create_markdown_file_repository() -> SqliteMarkdownFileRepository:
     """Create the markdown file repository."""
     return SqliteMarkdownFileRepository(create_sqlite_connection_factory())
+
+
+@lru_cache(maxsize=1)
+def create_page_error_repository() -> SqlitePageErrorRepository:
+    """Create the page-error (per-page conversion status) repository."""
+    return SqlitePageErrorRepository(create_sqlite_connection_factory())

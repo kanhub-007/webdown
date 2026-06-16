@@ -24,4 +24,5 @@ class GetJobProgressUseCase:
             created_at=job.created_at,
             updated_at=job.updated_at,
             error_message=job.error_message,
+            failed_pages=job.failed_pages,
         )

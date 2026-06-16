@@ -163,6 +163,7 @@ def register_markdown_tools(server: object) -> None:
             "status": result.status,
             "total_pages": result.total_pages,
             "processed_pages": result.processed_pages,
+            "failed_pages": result.failed_pages,
             "error_message": result.error_message,
         }
 

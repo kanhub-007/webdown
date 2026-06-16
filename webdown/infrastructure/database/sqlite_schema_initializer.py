@@ -51,4 +51,30 @@ class SqliteSchemaInitializer:
                     error_message TEXT
                 )
                 """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS page_conversion_status (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    job_id TEXT NOT NULL,
+                    url TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    markdown TEXT,
+                    error TEXT,
+                    artifact_path TEXT,
+                    UNIQUE(job_id, url),
+                    FOREIGN KEY (job_id) REFERENCES markdown_files(job_id)
+                )
+                """)
+            # Backwards-compatible schema evolution: add resilience columns to
+            # job_progress for databases created before this feature.
+            self._add_column_if_missing(cursor, "job_progress", "failed_pages", "INTEGER DEFAULT 0")
+            self._add_column_if_missing(cursor, "job_progress", "total_available", "INTEGER")
+            self._add_column_if_missing(cursor, "job_progress", "truncated", "INTEGER")
             conn.commit()
+
+    @staticmethod
+    def _add_column_if_missing(cursor, table: str, column: str, definition: str) -> None:
+        """Add a column to an existing table if it is not already present."""
+        cursor.execute(f"PRAGMA table_info({table})")
+        existing = {row[1] for row in cursor.fetchall()}
+        if column not in existing:
+            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")

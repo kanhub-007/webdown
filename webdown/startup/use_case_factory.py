@@ -16,7 +16,11 @@ from webdown.core.application.use_cases import (
     StartGitHubRepoMarkdownJobUseCase,
     StartSinglePageMarkdownJobUseCase,
 )
-from webdown.startup.repository_factory import create_markdown_file_repository, create_markdown_job_repository
+from webdown.startup.repository_factory import (
+    create_markdown_file_repository,
+    create_markdown_job_repository,
+    create_page_error_repository,
+)
 from webdown.startup.service_factory import (
     create_github_repository_processor,
     create_html_to_markdown_converter,
@@ -72,6 +76,7 @@ def create_generate_all_pages_markdown_use_case() -> GenerateAllPagesMarkdownUse
         create_sitemap_discovery_service(),
         create_page_renderer(),
         create_html_to_markdown_converter(),
+        create_page_error_repository(),
     )
 
 

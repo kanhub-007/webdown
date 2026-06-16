@@ -1,4 +1,12 @@
-"""Use case for generating markdown from all sitemap-discovered pages."""
+"""Use case for generating markdown from all sitemap-discovered pages.
+
+Resilience behaviour: each page's conversion is an independent outcome. A page
+that fails (empty render, empty markdown, or converter exception) is recorded
+as a per-page failure and processing continues; the job only ends ``failed`` if
+NO page succeeds, otherwise it ends ``completed_with_errors`` (partial) or
+``completed`` (all success). Successful pages' markdown is stored individually
+to enable per-page export and resume.
+"""
 
 import logging
 import time
@@ -6,10 +14,12 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from webdown.core.domain.entities.markdown_file import MarkdownFile
+from webdown.core.domain.entities.page_conversion_status import PageConversionStatus
 from webdown.core.domain.entities.sitemap_url import SitemapUrl
 from webdown.core.domain.interfaces.html_to_markdown_converter import HtmlToMarkdownConverter
 from webdown.core.domain.interfaces.markdown_file_repository import MarkdownFileRepository
 from webdown.core.domain.interfaces.markdown_job_repository import MarkdownJobRepository
+from webdown.core.domain.interfaces.page_error_repository import PageErrorRepository
 from webdown.core.domain.interfaces.page_renderer import PageRenderer
 from webdown.core.domain.interfaces.sitemap_discovery_service import SitemapDiscoveryService
 
@@ -26,12 +36,14 @@ class GenerateAllPagesMarkdownUseCase:
         sitemap_discovery_service: SitemapDiscoveryService,
         page_renderer: PageRenderer,
         html_to_markdown_converter: HtmlToMarkdownConverter,
+        page_error_repository: PageErrorRepository,
     ) -> None:
         self._job_repository = job_repository
         self._file_repository = file_repository
         self._sitemap_discovery_service = sitemap_discovery_service
         self._page_renderer = page_renderer
         self._html_to_markdown_converter = html_to_markdown_converter
+        self._page_error_repository = page_error_repository
 
     def execute(
         self,
@@ -56,20 +68,30 @@ class GenerateAllPagesMarkdownUseCase:
                 return
 
             html_results = self._render_pages(page_urls, job_id, total_pages)
-            all_markdowns, conversion_errors = self._convert_pages(page_urls, html_results, job_id, total_pages)
+            results = self._convert_pages(page_urls, html_results, job_id, total_pages)
 
-            if conversion_errors:
-                self._fail_with_errors(job_id, conversion_errors)
-                return
+            # Record every page outcome (no truncation). Done before deciding
+            # terminal status so the manifest survives even an all-fail job.
+            self._page_error_repository.save_many(job_id, results)
 
-            if all_markdowns:
+            successes = [r for r in results if r.status == "success"]
+            failures = [r for r in results if r.status == "failed"]
+
+            if successes:
                 self._save_combined_markdown(
-                    job_id, base_url, ip_address, all_markdowns, website_pages.pages, start_time
+                    job_id, base_url, ip_address, [r.markdown for r in successes], website_pages.pages, start_time
                 )
-                self._job_repository.update_job_progress(job_id, total_pages, "completed")
+                status = "completed_with_errors" if failures else "completed"
+                self._job_repository.update_job_progress(
+                    job_id, total_pages, status, failed_pages=len(failures)
+                )
             else:
-                self._job_repository.update_job_progress(job_id, total_pages, "failed", "No markdown content generated")
+                # All-fail: no MarkdownFile, but processed_pages keeps the high-water mark.
+                self._job_repository.update_job_progress(
+                    job_id, total_pages, "failed", failed_pages=len(failures)
+                )
         except Exception as error:
+            logger.error("Bulk conversion job %s failed: %s", job_id, error, exc_info=True)
             self._job_repository.update_job_progress(job_id, 0, "failed", str(error))
 
     def _discover_pages(
@@ -103,53 +125,46 @@ class GenerateAllPagesMarkdownUseCase:
         html_results: dict[str, str | None],
         job_id: str,
         total_pages: int,
-    ) -> tuple[list[str], list[str]]:
-        """Convert rendered HTML pages to Markdown."""
-        conversion_errors: list[str] = []
-        all_markdowns: list[str] = []
+    ) -> list[PageConversionStatus]:
+        """Convert rendered HTML pages to per-page conversion statuses."""
         inputs = [(url, html_results.get(url)) for url in page_urls]
+        results: list[PageConversionStatus] = []
 
         with ThreadPoolExecutor() as executor:
-            results = executor.map(self._convert_one_page, inputs)
-            for index, (result, error) in enumerate(results):
-                if error:
-                    conversion_errors.append(error)
-                elif result:
-                    all_markdowns.append(result)
+            for index, status in enumerate(executor.map(self._convert_one_page, inputs)):
+                results.append(status)
                 progress = int(total_pages * 0.5) + (index + 1) * 0.5
                 self._job_repository.update_job_progress(job_id, int(progress), "processing")
-        return all_markdowns, conversion_errors
+        return results
 
-    def _convert_one_page(self, args: tuple[str, str | None]) -> tuple[str | None, str | None]:
-        """Convert a single rendered page."""
+    def _convert_one_page(self, args: tuple[str, str | None]) -> PageConversionStatus:
+        """Convert a single rendered page into a PageConversionStatus (never raises)."""
         url, html = args
         if not html:
-            return None, f"No HTML content for {url}"
+            return PageConversionStatus(url=url, status="failed", error=f"No HTML content for {url}")
         try:
-            return self._html_to_markdown_converter.convert(html, url), None
+            markdown = self._html_to_markdown_converter.convert(html, url)
         except Exception as error:
             message = f"Error converting {url}: {error}"
             logger.error(message)
-            return None, message
-
-    def _fail_with_errors(self, job_id: str, errors: list[str]) -> None:
-        """Report conversion errors as a failed job."""
-        summary = f"Failed to convert {len(errors)} page(s): " + "; ".join(errors[:3])
-        if len(errors) > 3:
-            summary += f" and {len(errors) - 3} more..."
-        self._job_repository.update_job_progress(job_id, 0, "failed", summary)
+            return PageConversionStatus(url=url, status="failed", error=message)
+        if not markdown or not markdown.strip():
+            return PageConversionStatus(
+                url=url, status="failed", error=f"Conversion resulted in empty markdown for {url}"
+            )
+        return PageConversionStatus(url=url, status="success", markdown=markdown)
 
     def _save_combined_markdown(
         self,
         job_id: str,
         base_url: str,
         ip_address: str,
-        all_markdowns: list[str],
+        successful_markdowns: list[str],
         pages: list[SitemapUrl],
         start_time: float,
     ) -> None:
-        """Combine markdown chunks and persist."""
-        combined = "\n\n---\n\n".join(all_markdowns)
+        """Combine successful markdown chunks and persist."""
+        combined = "\n\n---\n\n".join(successful_markdowns)
         self._file_repository.save_markdown_file(
             MarkdownFile(
                 job_id=job_id,

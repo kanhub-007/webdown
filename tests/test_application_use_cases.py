@@ -112,6 +112,7 @@ def test_get_job_progress_returns_dto() -> None:
             created_at="2024-01-01",
             updated_at="2024-01-02",
             error_message=None,
+            failed_pages=0,
         )
     )
     use_case = GetJobProgressUseCase(job_repo)

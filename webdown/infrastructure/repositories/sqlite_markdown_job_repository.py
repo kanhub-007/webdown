@@ -41,29 +41,29 @@ class SqliteMarkdownJobRepository(MarkdownJobRepository):
         status: str = "processing",
         error_message: str | None = None,
         total_pages: int | None = None,
+        failed_pages: int | None = None,
     ) -> None:
         """Update progress for an existing markdown generation job."""
         now = _now_iso()
+        sets = ["processed_pages = ?", "status = ?", "updated_at = ?", "error_message = ?"]
+        params: list = [processed_pages, status, now, error_message]
+        if total_pages is not None:
+            sets.append("total_pages = ?")
+            params.append(total_pages)
+        if failed_pages is not None:
+            sets.append("failed_pages = ?")
+            params.append(failed_pages)
+        params.append(job_id)
         with self._connection_factory.get_connection("markdown_storage.db") as conn:
             cursor = conn.cursor()
-            if total_pages is not None:
-                cursor.execute(
-                    """
-                    UPDATE job_progress
-                    SET processed_pages = ?, status = ?, updated_at = ?, error_message = ?, total_pages = ?
-                    WHERE job_id = ?
-                    """,
-                    (processed_pages, status, now, error_message, total_pages, job_id),
-                )
-            else:
-                cursor.execute(
-                    """
-                    UPDATE job_progress
-                    SET processed_pages = ?, status = ?, updated_at = ?, error_message = ?
-                    WHERE job_id = ?
-                    """,
-                    (processed_pages, status, now, error_message, job_id),
-                )
+            cursor.execute(
+                f"""
+                UPDATE job_progress
+                SET {', '.join(sets)}
+                WHERE job_id = ?
+                """,
+                params,
+            )
             conn.commit()
 
     def get_job_progress(self, job_id: str) -> MarkdownJob | None:
@@ -72,7 +72,8 @@ class SqliteMarkdownJobRepository(MarkdownJobRepository):
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT job_id, status, total_pages, processed_pages, created_at, updated_at, error_message
+                SELECT job_id, status, total_pages, processed_pages, created_at, updated_at, error_message,
+                       failed_pages, total_available, truncated
                 FROM job_progress
                 WHERE job_id = ?
                 """,

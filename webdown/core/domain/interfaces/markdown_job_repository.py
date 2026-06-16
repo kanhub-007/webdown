@@ -20,6 +20,7 @@ class MarkdownJobRepository(ABC):
         status: str = "processing",
         error_message: str | None = None,
         total_pages: int | None = None,
+        failed_pages: int | None = None,
     ) -> None:
         """Update progress for an existing markdown generation job."""
 
