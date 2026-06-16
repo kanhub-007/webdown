@@ -131,7 +131,7 @@ def register_markdown_tools(server: object) -> None:
     )
     def convert_all_pages(
         base_url: str,
-        max_pages: int = 100,
+        max_pages: int = 1000,
         whitelist_patterns: str | None = None,
         blacklist_patterns: str | None = None,
     ) -> dict:
@@ -170,6 +170,8 @@ def register_markdown_tools(server: object) -> None:
             "total_pages": result.total_pages,
             "processed_pages": result.processed_pages,
             "failed_pages": result.failed_pages,
+            "total_available": result.total_available,
+            "truncated": result.truncated,
             "error_message": result.error_message,
         }
 

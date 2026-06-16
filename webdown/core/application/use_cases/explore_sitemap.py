@@ -21,4 +21,6 @@ class ExploreSitemapUseCase:
         return SitemapExploreResult(
             pages=list(website_pages.pages),
             sitemap_files_visited=list(website_pages.sitemap_files_visited),
+            total_available=website_pages.total_available,
+            truncated=website_pages.truncated,
         )

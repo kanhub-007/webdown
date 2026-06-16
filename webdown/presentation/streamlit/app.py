@@ -61,10 +61,12 @@ def _render_sitemap_tab(sitemap_service: object, metadata_service: object) -> No
     )
     if st.button("Find sitemap pages"):
         with st.spinner("Discovering sitemaps and pages..."):
-            pages, sitemaps = discover_website_pages(base_site_url, max_pages=max_sitemap_pages)
+            pages, sitemaps, total_available = discover_website_pages(base_site_url, max_pages=max_sitemap_pages)
             metadata_files = check_site_metadata_files(base_site_url)
 
         st.success(f"Found {len(pages)} pages across {len(sitemaps)} sitemap file(s)")
+        if total_available and total_available > len(pages):
+            st.info(f"Showing {len(pages)} of {total_available} available (raise the limit to see more).")
         with st.expander("Sitemaps visited", expanded=False):
             for sm in sitemaps:
                 st.write(sm)
@@ -118,7 +120,7 @@ def _render_full_site_tab(sitemap_service: object, page_renderer: object, html_c
 
     if st.button("Scrape Site & Combine Markdown"):
         with st.spinner(f"Discovering sitemap pages from {full_site_url}..."):
-            pages, _ = discover_website_pages(full_site_url, max_pages=full_max_pages)
+            pages, _, total_available = discover_website_pages(full_site_url, max_pages=full_max_pages)
         st.write(f"Found {len(pages)} pages in sitemap (sorted alphabetically).")
 
         page_urls = [p["loc"] for p in pages]

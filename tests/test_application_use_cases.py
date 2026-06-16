@@ -113,6 +113,8 @@ def test_get_job_progress_returns_dto() -> None:
             updated_at="2024-01-02",
             error_message=None,
             failed_pages=0,
+            total_available=None,
+            truncated=None,
         )
     )
     use_case = GetJobProgressUseCase(job_repo)
@@ -169,6 +171,8 @@ def test_explore_sitemap_returns_dto() -> None:
         discover_website_pages=lambda base_url, max_pages=None: SimpleNamespace(
             pages=[SitemapUrl(loc="https://example.com/docs", lastmod="2024-01-01")],
             sitemap_files_visited=["https://example.com/sitemap.xml"],
+            total_available=1,
+            truncated=False,
         )
     )
     use_case = ExploreSitemapUseCase(service)

@@ -42,6 +42,8 @@ class SqliteMarkdownJobRepository(MarkdownJobRepository):
         error_message: str | None = None,
         total_pages: int | None = None,
         failed_pages: int | None = None,
+        total_available: int | None = None,
+        truncated: bool | None = None,
     ) -> None:
         """Update progress for an existing markdown generation job."""
         now = _now_iso()
@@ -53,6 +55,12 @@ class SqliteMarkdownJobRepository(MarkdownJobRepository):
         if failed_pages is not None:
             sets.append("failed_pages = ?")
             params.append(failed_pages)
+        if total_available is not None:
+            sets.append("total_available = ?")
+            params.append(total_available)
+        if truncated is not None:
+            sets.append("truncated = ?")
+            params.append(1 if truncated else 0)
         params.append(job_id)
         with self._connection_factory.get_connection("markdown_storage.db") as conn:
             cursor = conn.cursor()

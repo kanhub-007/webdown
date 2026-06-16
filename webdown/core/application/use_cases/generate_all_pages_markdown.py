@@ -57,7 +57,9 @@ class GenerateAllPagesMarkdownUseCase:
         """Generate combined Markdown for sitemap-discovered pages."""
         start_time = time.time()
         try:
-            page_urls, website_pages = self._discover_pages(base_url, max_pages, whitelist_patterns, blacklist_patterns)
+            page_urls, website_pages = self._discover_pages(
+                base_url, max_pages, whitelist_patterns, blacklist_patterns, job_id
+            )
             total_pages = len(page_urls)
             self._job_repository.update_job_progress(job_id, 0, "processing", total_pages=total_pages)
 
@@ -100,14 +102,23 @@ class GenerateAllPagesMarkdownUseCase:
         max_pages: int,
         whitelist_patterns: list[str] | None,
         blacklist_patterns: list[str] | None,
+        job_id: str,
     ) -> tuple[list[str], object]:
-        """Discover and filter page URLs from the sitemap."""
+        """Discover and filter page URLs from the sitemap; surface truncation on the job."""
         website_pages = self._sitemap_discovery_service.discover_website_pages(base_url, max_pages=max_pages)
         page_urls = [page.loc for page in website_pages.pages]
         if whitelist_patterns:
             page_urls = [url for url in page_urls if any(p in url for p in whitelist_patterns)]
         if blacklist_patterns:
             page_urls = [url for url in page_urls if not any(p in url for p in blacklist_patterns)]
+        # Surface sitemap fidelity on the job so callers can tell a capped conversion
+        # from a complete one (the discovery total, before whitelist/blacklist).
+        if website_pages.total_available is not None:
+            self._job_repository.update_job_progress(
+                job_id, 0, "processing",
+                total_available=website_pages.total_available,
+                truncated=website_pages.truncated,
+            )
         return page_urls, website_pages
 
     def _render_pages(self, page_urls: list[str], job_id: str, total_pages: int) -> dict[str, str | None]:

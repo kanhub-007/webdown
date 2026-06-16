@@ -8,4 +8,4 @@ class SitemapExploreRequest:
     """Request data for exploring a website sitemap."""
 
     base_url: str
-    max_pages: int | None = None
+    max_pages: int | None = 1000

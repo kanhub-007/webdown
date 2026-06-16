@@ -12,11 +12,13 @@ def register_sitemap_tools(server: object) -> None:
             "Discover all pages from a website's sitemap. "
             "Use this BEFORE converting pages — it shows you what pages exist "
             "so you can decide which ones to convert. "
-            "Returns URLs with metadata (last modified, change frequency, priority) "
-            "and the sitemap files that were visited."
+            "Returns URLs with metadata (last modified, change frequency, priority), "
+            "the sitemap files that were visited, the total_available count, and a "
+            "truncated flag (True if max_pages capped the results). "
+            "Set max_pages=0 for all pages; default is 1000."
         ),
     )
-    def explore_sitemap(base_url: str, max_pages: int = 100) -> dict:
+    def explore_sitemap(base_url: str, max_pages: int = 1000) -> dict:
         """Discover all pages from a website's sitemap."""
         use_case = create_explore_sitemap_use_case()
         result = use_case.execute(SitemapExploreRequest(base_url=base_url, max_pages=max_pages))
@@ -27,4 +29,6 @@ def register_sitemap_tools(server: object) -> None:
             ],
             "sitemap_files_visited": result.sitemap_files_visited,
             "total_count": len(result.pages),
+            "total_available": result.total_available,
+            "truncated": result.truncated,
         }

@@ -2,7 +2,7 @@
 WebSiteExplorer
  - Responsible for discovering sitemap information and site metadata files.
 Exports:
- - discover_website_pages(base_url: str, max_pages: int | None = None) -> (list[dict], list[str])
+ - discover_website_pages(base_url: str, max_pages: int | None = None) -> (list[dict], list[str], int)
  - check_site_metadata_files(base_url: str) -> dict[str, str]
 """
 
@@ -262,11 +262,26 @@ def _parse_sitemap_bs4(content: bytes, sitemap_url: str) -> tuple[list[str], lis
 def _sitemap_entry(
     loc: str, lastmod_elem: object | None, changefreq_elem: object | None, priority_elem: object | None
 ) -> dict:
-    """Build a sitemap URL entry dict from parsed elements."""
-    lastmod = lastmod_elem.text.strip() if hasattr(lastmod_elem, "text") and lastmod_elem.text else None
-    changefreq = changefreq_elem.text.strip() if hasattr(changefreq_elem, "text") and changefreq_elem.text else None
-    priority = priority_elem.text.strip() if hasattr(priority_elem, "text") and priority_elem.text else None
-    return {"loc": loc, "lastmod": lastmod, "changefreq": changefreq, "priority": priority}
+    """Build a sitemap URL entry dict from parsed elements.
+
+    Each metadata arg may be an element (BeautifulSoup Tag / lxml element, read
+    via ``.text``) OR a plain string (lxml ``findtext`` result). The streaming
+    parser passes strings; the bs4 fallback passes elements — both must work,
+    or the streaming path silently drops lastmod/changefreq/priority.
+    """
+
+    def _text(value: object | None) -> str | None:
+        if value is None:
+            return None
+        text = value.text if hasattr(value, "text") else value
+        return text.strip() if isinstance(text, str) and text.strip() else None
+
+    return {
+        "loc": loc,
+        "lastmod": _text(lastmod_elem),
+        "changefreq": _text(changefreq_elem),
+        "priority": _text(priority_elem),
+    }
 
 
 def _parse_sitemap(content: bytes, sitemap_url: str) -> tuple[list[str], list[dict]]:
@@ -341,10 +356,9 @@ def discover_website_pages(base_url: str, max_pages: int | None = None) -> tuple
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
         while queue:
-            if max_pages is not None and len(pages) >= max_pages:
-                logger.debug(f"Sitemap discovery: Page limit ({max_pages}) reached. Halting search.")
-                break
-
+            # Discover ALL pages so the caller can report the true total and
+            # whether results were truncated. The cap is applied after dedup
+            # (see below), not during collection.
             # Take a batch of sitemap URLs to fetch concurrently
             batch: list[str] = []
             while queue and len(batch) < BATCH_SIZE:
@@ -376,17 +390,15 @@ def discover_website_pages(base_url: str, max_pages: int | None = None) -> tuple
                     if child not in visited:
                         queue.append(child)
 
-                if max_pages is not None and len(pages) >= max_pages:
-                    break
+    deduped = _deduplicate_and_filter(pages, base_url)
+    total_available = len(deduped)
+    if max_pages and max_pages > 0:
+        deduped = deduped[:max_pages]
+    return deduped, sorted(list(visited)), total_available
 
-    return _deduplicate_and_filter(pages, base_url, max_pages), sorted(list(visited))
 
-
-def _deduplicate_and_filter(pages: list[dict], base_url: str, max_pages: int | None) -> list[dict]:
+def _deduplicate_and_filter(pages: list[dict], base_url: str) -> list[dict]:
     """Filter same-site, de-duplicate by URL, keep latest lastmod, sort alphabetically."""
-    if max_pages is not None:
-        pages = pages[:max_pages]
-
     dedup: dict[str, dict] = {}
     for item in pages:
         loc = item.get("loc", "")
@@ -413,7 +425,13 @@ class RequestsSitemapDiscoveryService(SitemapDiscoveryService):
 
     def discover_website_pages(self, base_url: str, max_pages: int | None = None) -> WebsitePages:
         """Discover website pages from sitemap files."""
-        pages, sitemap_files = discover_website_pages(base_url, max_pages=max_pages)
+        pages, sitemap_files, total_available = discover_website_pages(base_url, max_pages=max_pages)
+        truncated = (
+            max_pages is not None
+            and max_pages > 0
+            and total_available is not None
+            and total_available > len(pages)
+        )
         return WebsitePages(
             pages=[
                 SitemapUrl(
@@ -425,4 +443,6 @@ class RequestsSitemapDiscoveryService(SitemapDiscoveryService):
                 for page in pages
             ],
             sitemap_files_visited=sitemap_files,
+            total_available=total_available,
+            truncated=truncated,
         )

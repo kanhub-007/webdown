@@ -11,3 +11,5 @@ class SitemapExploreResult:
 
     pages: list[SitemapUrl] = field(default_factory=list)
     sitemap_files_visited: list[str] = field(default_factory=list)
+    total_available: int | None = None
+    truncated: bool = False

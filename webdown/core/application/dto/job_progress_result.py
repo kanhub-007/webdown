@@ -15,3 +15,5 @@ class JobProgressResult:
     processed_pages: int = 0
     error_message: str | None = None
     failed_pages: int = 0
+    total_available: int | None = None
+    truncated: bool | None = None
