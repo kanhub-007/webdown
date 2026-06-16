@@ -32,9 +32,14 @@ class _FakeRenderer:
 
     def __init__(self, html_by_url: dict[str, str | None]) -> None:
         self._html = html_by_url
+        self.rendered: list[str] = []
 
     def render_all(self, urls, progress_callback=None) -> dict[str, str | None]:
-        return {u: self._html.get(u) for u in urls}
+        out = {}
+        for u in urls:
+            self.rendered.append(u)
+            out[u] = self._html.get(u)
+        return out
 
 
 class _FakeDiscovery:
@@ -178,3 +183,38 @@ def test_per_page_markdown_is_stored_for_successful_pages() -> None:
     success_md = error_repo.get_successful_markdown("J")
     assert set(success_md.keys()) == {f"{BASE}/p/a"}
     assert "Body of A" in success_md[f"{BASE}/p/a"]
+
+
+def test_resume_skips_succeeded_urls_and_regenerates_combined_output() -> None:
+    """S6 + M3: resume renders only gaps; combined output includes prior successes."""
+    from webdown.core.domain.entities.page_conversion_status import PageConversionStatus
+
+    # A prior run already succeeded on A and C (stored under an old job id).
+    prior_repo = InMemoryPageErrorRepository()
+    prior_repo.save_many("OLD", [
+        PageConversionStatus(url=f"{BASE}/p/a", status="success", markdown="# A\n\nprior A body"),
+        PageConversionStatus(url=f"{BASE}/p/c", status="success", markdown="# C\n\nprior C body"),
+    ])
+    discovered = [SitemapUrl(loc=f"{BASE}/p/a"), SitemapUrl(loc=f"{BASE}/p/b"), SitemapUrl(loc=f"{BASE}/p/c")]
+    renderer = _FakeRenderer({f"{BASE}/p/b": GOOD_HTML.format(title="B", body="new B body")})
+    job_repo = InMemoryMarkdownJobRepository()
+    file_repo = InMemoryMarkdownFileRepository()
+    use_case = GenerateAllPagesMarkdownUseCase(
+        job_repo, file_repo, _FakeDiscovery(discovered), renderer,
+        BeautifulSoupHtmlToMarkdownConverter(), prior_repo,
+    )
+
+    job_repo.create_job("J2", 0)
+    use_case.execute("J2", BASE, 10, None, None, "mcp", resume=True)
+
+    # Only the gap (B) was rendered — A and C were skipped.
+    assert set(renderer.rendered) == {f"{BASE}/p/b"}
+    # Combined output is regenerated from ALL host successes (prior + new).
+    saved = file_repo.get_markdown_file("J2")
+    assert saved is not None
+    assert "prior A body" in saved.content
+    assert "prior C body" in saved.content
+    assert "new B body" in saved.content
+    progress = job_repo.get_job_progress("J2")
+    assert progress.status == "completed"  # all 3 discovered now succeeded
+    assert progress.failed_pages == 0

@@ -53,48 +53,70 @@ class GenerateAllPagesMarkdownUseCase:
         whitelist_patterns: list[str] | None,
         blacklist_patterns: list[str] | None,
         ip_address: str,
+        resume: bool = False,
     ) -> None:
-        """Generate combined Markdown for sitemap-discovered pages."""
+        """Generate combined Markdown for sitemap-discovered pages.
+
+        With resume=True, pages already converted successfully for this base_url
+        are skipped (not re-rendered), and the combined output is regenerated
+        from all host successes (prior + newly rendered).
+        """
         start_time = time.time()
         try:
-            page_urls, website_pages = self._discover_pages(
+            discovered_urls, website_pages = self._discover_pages(
                 base_url, max_pages, whitelist_patterns, blacklist_patterns, job_id
             )
-            total_pages = len(page_urls)
-            self._job_repository.update_job_progress(job_id, 0, "processing", total_pages=total_pages)
+            to_render = self._urls_to_render(discovered_urls, base_url, resume)
+            self._job_repository.update_job_progress(job_id, 0, "processing", total_pages=len(discovered_urls))
 
-            if total_pages == 0:
+            if not discovered_urls:
                 self._job_repository.update_job_progress(
                     job_id, 0, "failed", "No pages found after filtering", total_pages=0
                 )
                 return
 
-            html_results = self._render_pages(page_urls, job_id, total_pages)
-            results = self._convert_pages(page_urls, html_results, job_id, total_pages)
-
-            # Record every page outcome (no truncation). Done before deciding
-            # terminal status so the manifest survives even an all-fail job.
+            # Render + convert only the pages that still need it.
+            html_results = self._render_pages(to_render, job_id, len(discovered_urls))
+            results = self._convert_pages(to_render, html_results, job_id, len(discovered_urls))
             self._page_error_repository.save_many(job_id, results)
 
-            successes = [r for r in results if r.status == "success"]
-            failures = [r for r in results if r.status == "failed"]
-
-            if successes:
-                self._save_combined_markdown(
-                    job_id, base_url, ip_address, [r.markdown for r in successes], website_pages.pages, start_time
-                )
-                status = "completed_with_errors" if failures else "completed"
-                self._job_repository.update_job_progress(
-                    job_id, total_pages, status, failed_pages=len(failures)
+            # Combined output: on resume, all host successes (regenerated); else
+            # only this run's successes.
+            if resume:
+                success_markdowns = list(
+                    self._page_error_repository.get_successful_markdown_by_base(base_url).values()
                 )
             else:
-                # All-fail: no MarkdownFile, but processed_pages keeps the high-water mark.
+                success_markdowns = [r.markdown for r in results if r.status == "success"]
+            new_failures = sum(1 for r in results if r.status == "failed")
+
+            succeeded_total = len(success_markdowns)
+            if success_markdowns:
+                self._save_combined_markdown(
+                    job_id, base_url, ip_address, success_markdowns, website_pages.pages, start_time
+                )
+                failed_pages = max(0, len(discovered_urls) - succeeded_total)
+                status = "completed_with_errors" if failed_pages else "completed"
                 self._job_repository.update_job_progress(
-                    job_id, total_pages, "failed", failed_pages=len(failures)
+                    job_id, len(discovered_urls), status, failed_pages=failed_pages
+                )
+            else:
+                # Nothing succeeded anywhere: failed, but keep the high-water mark.
+                self._job_repository.update_job_progress(
+                    job_id, len(discovered_urls), "failed", failed_pages=new_failures
                 )
         except Exception as error:
             logger.error("Bulk conversion job %s failed: %s", job_id, error, exc_info=True)
             self._job_repository.update_job_progress(job_id, 0, "failed", str(error))
+
+    def _urls_to_render(
+        self, discovered_urls: list[str], base_url: str, resume: bool
+    ) -> list[str]:
+        """Return the URLs that still need rendering (skip prior successes on resume)."""
+        if not resume:
+            return discovered_urls
+        already = self._page_error_repository.succeeded_urls(base_url)
+        return [u for u in discovered_urls if u not in already]
 
     def _discover_pages(
         self,

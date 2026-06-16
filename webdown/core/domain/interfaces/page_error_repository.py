@@ -34,6 +34,14 @@ class PageErrorRepository(ABC):
         """
 
     @abstractmethod
+    def get_successful_markdown_by_base(self, base_url: str) -> dict[str, str]:
+        """Return {url: markdown} for all successful pages under a base_url (cross-job).
+
+        Enables resume: the regenerated combined output includes prior successes
+        stored under previous job ids for the same site.
+        """
+
+    @abstractmethod
     def succeeded_urls(self, base_url: str) -> set[str]:
         """Return URLs already converted successfully for a base_url.
 

@@ -126,7 +126,11 @@ def register_markdown_tools(server: object) -> None:
             "Runs synchronously (blocks until complete). "
             "Use whitelist_patterns (comma-separated URL substrings to include) "
             "and blacklist_patterns (comma-separated URL substrings to exclude) to filter pages. "
-            "Track progress with get_job_progress, then download with download_markdown."
+            "Failing pages are isolated: the job ends completed_with_errors and successful pages "
+            "are still saved (see failed_pages in get_job_progress). Set resume=True to skip pages "
+            "already converted successfully for this site. "
+            "Track progress with get_job_progress, then save to disk with save_markdown_to_file "
+            "(or download_markdown for small jobs)."
         ),
     )
     def convert_all_pages(
@@ -134,6 +138,7 @@ def register_markdown_tools(server: object) -> None:
         max_pages: int = 1000,
         whitelist_patterns: str | None = None,
         blacklist_patterns: str | None = None,
+        resume: bool = False,
     ) -> dict:
         """Convert all pages from a website sitemap to Markdown."""
         whitelist = [p.strip() for p in whitelist_patterns.split(",") if p.strip()] if whitelist_patterns else None
@@ -146,6 +151,7 @@ def register_markdown_tools(server: object) -> None:
                 max_pages=max_pages,
                 whitelist_patterns=whitelist,
                 blacklist_patterns=blacklist,
+                resume=resume,
             ),
             ip_address="mcp",
             background_processor=ThreadBackgroundProcessor(),

@@ -11,3 +11,4 @@ class GenerateAllPagesRequest:
     max_pages: int | None = None
     whitelist_patterns: list[str] | None = None
     blacklist_patterns: list[str] | None = None
+    resume: bool = False

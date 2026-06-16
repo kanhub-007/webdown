@@ -110,3 +110,22 @@ class SqlitePageErrorRepository(PageErrorRepository):
             )
             rows = cursor.fetchall()
         return {row["url"] for row in rows if _normalize_host(row["url"]) == target_host}
+
+    def get_successful_markdown_by_base(self, base_url: str) -> dict[str, str]:
+        """Return {url: markdown} for all successful pages under a base_url (cross-job)."""
+        target_host = _normalize_host(base_url)
+        with self._connection_factory.get_connection("markdown_storage.db") as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                SELECT url, markdown
+                FROM page_conversion_status
+                WHERE status = 'success' AND markdown IS NOT NULL
+                """,
+            )
+            rows = cursor.fetchall()
+        return {
+            row["url"]: row["markdown"]
+            for row in rows
+            if _normalize_host(row["url"]) == target_host
+        }

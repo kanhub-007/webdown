@@ -36,9 +36,10 @@ class StartAllPagesMarkdownJobUseCase:
             self._generation_use_case.execute,
             job_id,
             request.base_url,
-            request.max_pages or 100,
+            request.max_pages or 1000,
             request.whitelist_patterns,
             request.blacklist_patterns,
             ip_address,
+            request.resume,
         )
         return JobResult(job_id=job_id)
