@@ -11,9 +11,10 @@ def create_server() -> object:
         name="webdown",
         instructions=(
             "WebDown converts websites and GitHub repositories to Markdown, "
-            "explores sitemaps, and aggregates RSS feeds.\n\n"
+            "explores sitemaps, searches the web, and aggregates RSS feeds.\n\n"
             "FIRST: call get_usage_guide() for a comprehensive guide.\n\n"
             "QUICK REFERENCE:\n"
+            "• search_web(query) — search the web for pages, get URLs + snippets\n"
             "• explore_sitemap(base_url) — discover all pages on a website\n"
             "• convert_single_page(url) — convert one page to Markdown\n"
             "• convert_all_pages(base_url) — convert entire website to Markdown\n"

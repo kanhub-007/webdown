@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 
-from webdown.presentation.api.routes import markdown, progress, rss, sitemap
+from webdown.presentation.api.routes import markdown, progress, rss, search, sitemap
 from webdown.startup.repository_factory import (
     create_markdown_file_repository,
     create_markdown_job_repository,
@@ -18,6 +18,7 @@ from webdown.startup.use_case_factory import (
     create_get_job_progress_use_case,
     create_get_markdown_file_use_case,
     create_list_markdown_files_use_case,
+    create_search_web_use_case,
     create_start_all_pages_markdown_job_use_case,
     create_start_github_repo_markdown_job_use_case,
     create_start_single_page_markdown_job_use_case,
@@ -88,6 +89,7 @@ def create_app() -> FastAPI:
 def _wire_routes(app: FastAPI, web_index_api: FastAPI, web_convert_api: FastAPI, rss_api: FastAPI) -> None:
     """Register routers and mount sub-applications."""
     web_index_api.include_router(sitemap.router)
+    web_index_api.include_router(search.router)
     web_convert_api.include_router(markdown.router)
     web_convert_api.include_router(progress.router)
     rss_api.include_router(rss.router)
@@ -126,6 +128,7 @@ def configure_application_state(fastapi_app: FastAPI) -> None:
     fastapi_app.state.start_all_pages_markdown_job_use_case = create_start_all_pages_markdown_job_use_case()
     fastapi_app.state.start_single_page_markdown_job_use_case = create_start_single_page_markdown_job_use_case()
     fastapi_app.state.start_github_repo_markdown_job_use_case = create_start_github_repo_markdown_job_use_case()
+    fastapi_app.state.search_web_use_case = create_search_web_use_case()
 
 
 def _configure_logging() -> None:

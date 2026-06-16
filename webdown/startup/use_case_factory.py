@@ -11,6 +11,7 @@ from webdown.core.application.use_cases import (
     GetJobProgressUseCase,
     GetMarkdownFileUseCase,
     ListMarkdownFilesUseCase,
+    SearchWebUseCase,
     StartAllPagesMarkdownJobUseCase,
     StartGitHubRepoMarkdownJobUseCase,
     StartSinglePageMarkdownJobUseCase,
@@ -22,6 +23,7 @@ from webdown.startup.service_factory import (
     create_page_renderer,
     create_rss_feed_aggregator,
     create_sitemap_discovery_service,
+    create_web_search_service,
 )
 
 
@@ -35,6 +37,12 @@ def create_explore_sitemap_use_case() -> ExploreSitemapUseCase:
 def create_aggregate_rss_feeds_use_case() -> AggregateRssFeedsUseCase:
     """Create the RSS feed aggregation use case."""
     return AggregateRssFeedsUseCase(create_rss_feed_aggregator())
+
+
+@lru_cache(maxsize=1)
+def create_search_web_use_case() -> SearchWebUseCase:
+    """Create the web search use case."""
+    return SearchWebUseCase(create_web_search_service())
 
 
 @lru_cache(maxsize=1)

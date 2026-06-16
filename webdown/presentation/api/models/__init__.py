@@ -8,6 +8,9 @@ from webdown.presentation.api.models.job_response import JobResponse
 from webdown.presentation.api.models.markdown_file_metadata import MarkdownFileMetadata
 from webdown.presentation.api.models.progress_response import ProgressResponse
 from webdown.presentation.api.models.rss_feed_item import RssFeedItem
+from webdown.presentation.api.models.search_request import SearchRequest
+from webdown.presentation.api.models.search_response import SearchResponse
+from webdown.presentation.api.models.search_result_item import SearchResultItem
 from webdown.presentation.api.models.sitemap_request import SitemapRequest
 from webdown.presentation.api.models.sitemap_response import SitemapResponse
 from webdown.presentation.api.models.sitemap_url_info import SitemapUrlInfo
@@ -21,6 +24,9 @@ __all__ = [
     "MarkdownFileMetadata",
     "ProgressResponse",
     "RssFeedItem",
+    "SearchRequest",
+    "SearchResponse",
+    "SearchResultItem",
     "SitemapRequest",
     "SitemapResponse",
     "SitemapUrlInfo",

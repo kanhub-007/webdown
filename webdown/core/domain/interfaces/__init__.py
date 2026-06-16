@@ -9,6 +9,7 @@ from webdown.core.domain.interfaces.page_renderer import PageRenderer
 from webdown.core.domain.interfaces.rss_feed_aggregator import RssFeedAggregator
 from webdown.core.domain.interfaces.sitemap_discovery_service import SitemapDiscoveryService
 from webdown.core.domain.interfaces.site_metadata_service import SiteMetadataService
+from webdown.core.domain.interfaces.web_search_service import WebSearchService
 
 __all__ = [
     "BackgroundProcessor",
@@ -20,4 +21,5 @@ __all__ = [
     "RssFeedAggregator",
     "SitemapDiscoveryService",
     "SiteMetadataService",
+    "WebSearchService",
 ]

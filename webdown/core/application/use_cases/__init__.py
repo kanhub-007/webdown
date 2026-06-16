@@ -10,6 +10,7 @@ from webdown.core.application.use_cases.get_markdown_file import GetMarkdownFile
 from webdown.core.application.use_cases.list_markdown_files import ListMarkdownFilesUseCase
 from webdown.core.application.use_cases.start_all_pages_markdown_job import StartAllPagesMarkdownJobUseCase
 from webdown.core.application.use_cases.start_github_repo_markdown_job import StartGitHubRepoMarkdownJobUseCase
+from webdown.core.application.use_cases.search_web import SearchWebUseCase
 from webdown.core.application.use_cases.start_single_page_markdown_job import StartSinglePageMarkdownJobUseCase
 
 __all__ = [
@@ -21,6 +22,7 @@ __all__ = [
     "GetJobProgressUseCase",
     "GetMarkdownFileUseCase",
     "ListMarkdownFilesUseCase",
+    "SearchWebUseCase",
     "StartAllPagesMarkdownJobUseCase",
     "StartGitHubRepoMarkdownJobUseCase",
     "StartSinglePageMarkdownJobUseCase",

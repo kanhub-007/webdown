@@ -5,6 +5,7 @@ from functools import lru_cache
 from webdown.infrastructure.services.beautifulsoup_html_to_markdown_converter import (
     BeautifulSoupHtmlToMarkdownConverter,
 )
+from webdown.infrastructure.services.ddgs_web_search_service import DDGSWebSearchService
 from webdown.infrastructure.services.feedparser_rss_feed_aggregator import FeedparserRssFeedAggregator
 from webdown.infrastructure.services.gitingest_github_repository_processor import GitingestGitHubRepositoryProcessor
 from webdown.infrastructure.services.playwright_page_renderer import PlaywrightPageRenderer
@@ -46,3 +47,9 @@ def create_github_repository_processor() -> GitingestGitHubRepositoryProcessor:
 def create_rss_feed_aggregator() -> FeedparserRssFeedAggregator:
     """Create the RSS feed aggregator service."""
     return FeedparserRssFeedAggregator()
+
+
+@lru_cache(maxsize=1)
+def create_web_search_service() -> DDGSWebSearchService:
+    """Create the web search service."""
+    return DDGSWebSearchService()

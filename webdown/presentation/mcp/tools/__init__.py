@@ -2,6 +2,7 @@
 
 from webdown.presentation.mcp.tools.markdown import register_markdown_tools
 from webdown.presentation.mcp.tools.rss import register_rss_tools
+from webdown.presentation.mcp.tools.search import register_search_tools
 from webdown.presentation.mcp.tools.sitemap import register_sitemap_tools
 
 
@@ -10,3 +11,4 @@ def register_tools(server: object) -> None:
     register_sitemap_tools(server)
     register_rss_tools(server)
     register_markdown_tools(server)
+    register_search_tools(server)
