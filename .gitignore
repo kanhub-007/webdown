@@ -45,3 +45,6 @@ nul
 .env.*
 /uv.lock
 docs/archive/
+
+# Specs
+specs/
