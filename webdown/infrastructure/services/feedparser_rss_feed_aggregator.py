@@ -1,5 +1,6 @@
 """RSS feed aggregation service backed by feedparser and httpx."""
 
+import calendar
 import json
 import logging
 import re
@@ -86,7 +87,7 @@ def _normalize_item(entry: dict, source: str) -> FeedItem:
     published = entry.get("published_parsed") or entry.get("updated_parsed")
     published_dt = None
     if published and isinstance(published, time.struct_time):
-        published_dt = datetime.fromtimestamp(time.mktime(published), tz=timezone.utc)
+        published_dt = datetime.fromtimestamp(calendar.timegm(published), tz=timezone.utc)
 
     raw_summary = entry.get("summary", entry.get("description", ""))
     clean_summary = _clean_html(raw_summary)
@@ -137,7 +138,7 @@ async def aggregate_all(published_after: datetime | None = None) -> list[FeedIte
             _negative_cache[feed_url] = now + _NEGATIVE_CACHE_TTL
             continue
 
-    results.sort(key=lambda x: x.published or datetime.min, reverse=True)
+    results.sort(key=lambda x: x.published or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
 
     if use_cache:
         cache["data"] = results

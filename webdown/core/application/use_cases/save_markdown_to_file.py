@@ -5,6 +5,7 @@ the full content through the tool response. Reads existing stored content only â
 no re-rendering. See specs/2026-06-16_markdown-file-export/.
 """
 
+import logging
 from pathlib import Path
 
 from webdown.core.application.dto.save_markdown_to_file_request import SaveMarkdownToFileRequest
@@ -13,6 +14,8 @@ from webdown.core.domain.exceptions import MarkdownFileNotFoundError
 from webdown.core.domain.interfaces.markdown_file_repository import MarkdownFileRepository
 from webdown.core.domain.interfaces.markdown_file_writer import MarkdownFileWriter
 from webdown.core.domain.interfaces.page_error_repository import PageErrorRepository
+
+logger = logging.getLogger(__name__)
 
 
 class SaveMarkdownToFileUseCase:
@@ -43,7 +46,11 @@ class SaveMarkdownToFileUseCase:
             raise MarkdownFileNotFoundError(request.job_id)
 
         path = self._resolve_path(request)
-        return self._writer.write(path, markdown_file.content)
+        self._check_overwrite(path, request.overwrite)
+        try:
+            return self._writer.write(path, markdown_file.content)
+        except OSError as exc:
+            raise ValueError(f"Cannot write to {path}: {exc}") from exc
 
     def _export_split(self, request: SaveMarkdownToFileRequest) -> FileExportResult:
         """Write one .md per successful page using stored per-page markdown."""
@@ -55,7 +62,24 @@ class SaveMarkdownToFileUseCase:
         if not pages:
             raise MarkdownFileNotFoundError(request.job_id)
         dir_path = self._resolve_split_dir(request)
-        return self._writer.write_many(dir_path, pages)
+        self._check_overwrite(dir_path, request.overwrite)
+        try:
+            return self._writer.write_many(dir_path, pages)
+        except OSError as exc:
+            raise ValueError(f"Cannot write to {dir_path}: {exc}") from exc
+
+    @staticmethod
+    def _check_overwrite(path: str, overwrite: bool) -> None:
+        """Raise FileExistsError when overwrite is False and path exists."""
+        target = Path(path)
+        if not overwrite and target.exists():
+            if target.is_dir():
+                raise FileExistsError(
+                    f"Directory already exists and overwrite=False: {path}"
+                )
+            raise FileExistsError(
+                f"File already exists and overwrite=False: {path}"
+            )
 
     def _resolve_path(self, request: SaveMarkdownToFileRequest) -> str:
         """Resolve the combined output path: explicit file/dir, else default."""

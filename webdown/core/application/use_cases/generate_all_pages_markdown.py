@@ -212,8 +212,20 @@ class GenerateAllPagesMarkdownUseCase:
         total_pages: int,
         capture: bool = False,
     ) -> list[PageConversionStatus]:
-        """Convert rendered HTML pages to per-page conversion statuses."""
+        """Convert rendered HTML pages to per-page conversion statuses.
+
+        The progress bar is split 50/50 between rendering and conversion.
+        With resume the convert batch may be shorter than total_pages (some
+        URLs were skipped), so the per-page increment is scaled to always fill
+        the remaining 50 % of the bar regardless of batch size.
+        """
         results: list[PageConversionStatus] = []
+
+        # Scale the per-page increment so the progress bar reaches 100 % even
+        # when the convert batch is smaller than total_pages (resume mode).
+        convert_span = total_pages * 0.5
+        per_page = convert_span / len(page_urls) if page_urls else 0
+        start_offset = int(total_pages * 0.5)
 
         with ThreadPoolExecutor(max_workers=_CONVERT_WORKERS) as executor:
             futures = [
@@ -231,8 +243,8 @@ class GenerateAllPagesMarkdownUseCase:
             for index, future in enumerate(futures):
                 status = future.result()
                 results.append(status)
-                progress = int(total_pages * 0.5) + (index + 1) * 0.5
-                self._job_repository.update_job_progress(job_id, int(progress), "processing")
+                progress = start_offset + int((index + 1) * per_page)
+                self._job_repository.update_job_progress(job_id, progress, "processing")
         return results
 
     def _save_combined_markdown(
