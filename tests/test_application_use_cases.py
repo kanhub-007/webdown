@@ -137,7 +137,7 @@ def test_get_job_progress_returns_none_for_missing() -> None:
 def test_list_markdown_files_returns_dtos() -> None:
     """ListMarkdownFilesUseCase maps domain entities to DTOs."""
     file_repo = SimpleNamespace(
-        list_markdown_files=lambda: [
+        list_markdown_files=lambda limit=100, offset=0: [
             MarkdownFileMetadata(
                 id=1,
                 job_id="a",

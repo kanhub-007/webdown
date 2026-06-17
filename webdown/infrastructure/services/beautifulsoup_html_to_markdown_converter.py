@@ -129,10 +129,9 @@ def normalize_code_blocks(soup: BeautifulSoup) -> BeautifulSoup:
     return soup
 
 
-def normalize_html_tables(html_content: str) -> str:
-    """Convert all ARIA tables to standard HTML tables."""
+def normalize_html_tables_inplace(soup: BeautifulSoup) -> None:
+    """Convert all ARIA tables to standard HTML tables (mutates soup in place)."""
     logger.debug("\n" + "=" * 50 + "\nNORMALIZING HTML: Converting ARIA tables to <table>\n" + "=" * 50)
-    soup = BeautifulSoup(html_content, "lxml")
     aria_tables = soup.find_all("div", role="table")
     logger.debug("Found %d ARIA table(s) to convert", len(aria_tables))
 
@@ -150,12 +149,32 @@ def normalize_html_tables(html_content: str) -> str:
     logger.debug(
         f"\n{'=' * 50}\nCONVERSION COMPLETE: {converted_count}/{len(aria_tables)} tables converted\n{'=' * 50}\n"
     )
+
+
+def normalize_html_tables(html_content: str) -> str:
+    """Convert all ARIA tables to standard HTML tables (string in, string out).
+
+    Kept for backward compatibility. Prefer parsing once and using
+    normalize_html_tables_inplace + normalize_code_blocks on the same soup.
+    """
+    soup = BeautifulSoup(html_content, "lxml")
+    normalize_html_tables_inplace(soup)
     return str(soup)
 
 
+def _normalize_soup(soup: BeautifulSoup) -> BeautifulSoup:
+    """Normalize a BeautifulSoup object: convert ARIA tables and mark code blocks."""
+    normalize_html_tables_inplace(soup)
+    return normalize_code_blocks(soup)
+
+
 def normalize_html(html_content: str) -> str:
-    """Normalize HTML: convert ARIA tables and mark code blocks."""
-    return str(normalize_code_blocks(BeautifulSoup(normalize_html_tables(html_content), "lxml")))
+    """Normalize HTML: convert ARIA tables and mark code blocks (string in, string out).
+
+    Kept for backward compatibility. Prefer _normalize_soup for new code paths.
+    """
+    soup = _normalize_soup(BeautifulSoup(html_content, "lxml"))
+    return str(soup)
 
 
 # ---------------------------------------------------------------------------
@@ -163,9 +182,12 @@ def normalize_html(html_content: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def extract_markdown_from_html(html_content: str, base_url: str) -> str:
-    """Convert HTML to Markdown, handling headings, tables, code, alerts, etc."""
-    soup = BeautifulSoup(html_content, "lxml")
+def extract_markdown_from_soup(soup: BeautifulSoup, base_url: str) -> str:
+    """Convert HTML to Markdown, handling headings, tables, code, alerts, etc.
+
+    Accepts a pre-parsed BeautifulSoup object (use extract_markdown_from_html
+    for the legacy string-based entry point).
+    """
     output_lines: list[str] = []
 
     breadcrumb_title = _build_breadcrumb_title(soup, base_url)
@@ -268,10 +290,25 @@ def extract_markdown_from_html(html_content: str, base_url: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+def extract_markdown_from_html(html_content: str, base_url: str) -> str:
+    """Convert HTML to Markdown, handling headings, tables, code, alerts, etc.
+
+    Convenience wrapper that parses HTML first. For bulk conversions, use
+    extract_markdown_from_soup with a pre-parsed soup to avoid re-parsing.
+    """
+    soup = BeautifulSoup(html_content, "lxml")
+    return extract_markdown_from_soup(soup, base_url)
+
+
 class BeautifulSoupHtmlToMarkdownConverter(HtmlToMarkdownConverter):
     """HTML-to-Markdown converter backed by BeautifulSoup and pandas."""
 
     def convert(self, html: str, base_url: str) -> str:
-        """Convert HTML content to Markdown."""
-        normalized_html = normalize_html(html)
-        return extract_markdown_from_html(normalized_html, base_url)
+        """Convert HTML content to Markdown.
+
+        Parses the HTML once, then applies normalisation and extraction on the
+        same soup object — avoiding the previous triple-parse anti-pattern.
+        """
+        soup = BeautifulSoup(html, "lxml")
+        _normalize_soup(soup)
+        return extract_markdown_from_soup(soup, base_url)

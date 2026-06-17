@@ -39,14 +39,13 @@ class SqliteMarkdownFileRepository(MarkdownFileRepository):
                     markdown_file.base_url,
                 ),
             )
-            for sitemap_url in markdown_file.sitemap_urls:
-                cursor.execute(
-                    """
-                    INSERT INTO sitemap_metadata (job_id, url, lastmod)
-                    VALUES (?, ?, ?)
-                    """,
-                    (markdown_file.job_id, sitemap_url.loc, sitemap_url.lastmod),
-                )
+            cursor.executemany(
+                """
+                INSERT INTO sitemap_metadata (job_id, url, lastmod)
+                VALUES (?, ?, ?)
+                """,
+                [(markdown_file.job_id, u.loc, u.lastmod) for u in markdown_file.sitemap_urls],
+            )
             conn.commit()
 
     def get_markdown_file(self, job_id: str) -> MarkdownFile | None:
@@ -75,14 +74,23 @@ class SqliteMarkdownFileRepository(MarkdownFileRepository):
             sitemap_rows = cursor.fetchall()
         return markdown_file_from_row(row, sitemap_rows)
 
-    def list_markdown_files(self) -> list[MarkdownFileMetadata]:
-        """List generated markdown file metadata without content."""
+    def list_markdown_files(self, limit: int = 100, offset: int = 0) -> list[MarkdownFileMetadata]:
+        """List generated markdown file metadata without content.
+
+        Args:
+            limit: Maximum number of rows to return (default 100).
+            offset: Number of rows to skip for pagination.
+
+        Returns:
+            List of MarkdownFileMetadata, newest first.
+        """
         with self._connection_factory.get_connection("markdown_storage.db") as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT id, job_id, created_at, ip_address, file_size, generation_time_seconds, status, base_url
                 FROM markdown_files
                 ORDER BY created_at DESC
-                """)
+                LIMIT ? OFFSET ?
+                """, (limit, offset))
             rows = cursor.fetchall()
         return [markdown_file_metadata_from_row(row) for row in rows]

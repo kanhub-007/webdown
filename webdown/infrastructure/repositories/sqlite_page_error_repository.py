@@ -9,6 +9,11 @@ from webdown.infrastructure.repositories.mappers.page_conversion_status_mapper i
 from webdown.infrastructure.repositories.sqlite_connection_factory import SqliteConnectionFactory
 
 
+def _host_from_url(url: str) -> str:
+    """Extract the normalized host from a URL for SQL-side filtering."""
+    return normalize_host(url)
+
+
 class SqlitePageErrorRepository(PageErrorRepository):
     """Stores per-page conversion outcomes in SQLite."""
 
@@ -22,15 +27,16 @@ class SqlitePageErrorRepository(PageErrorRepository):
             cursor = conn.cursor()
             cursor.execute(
                 """
-                INSERT INTO page_conversion_status (job_id, url, status, markdown, error, artifact_path)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO page_conversion_status (job_id, url, host, status, markdown, error, artifact_path)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(job_id, url) DO UPDATE SET
+                    host = excluded.host,
                     status = excluded.status,
                     markdown = excluded.markdown,
                     error = excluded.error,
                     artifact_path = excluded.artifact_path
                 """,
-                (job_id, status.url, status.status, status.markdown, status.error, status.artifact_path),
+                (job_id, status.url, _host_from_url(status.url), status.status, status.markdown, status.error, status.artifact_path),
             )
             conn.commit()
 
@@ -39,16 +45,17 @@ class SqlitePageErrorRepository(PageErrorRepository):
         if not statuses:
             return
         rows = [
-            (job_id, s.url, s.status, s.markdown, s.error or "(no message)", s.artifact_path)
+            (job_id, s.url, _host_from_url(s.url), s.status, s.markdown, s.error or "(no message)", s.artifact_path)
             for s in statuses
         ]
         with self._connection_factory.get_connection("markdown_storage.db") as conn:
             cursor = conn.cursor()
             cursor.executemany(
                 """
-                INSERT INTO page_conversion_status (job_id, url, status, markdown, error, artifact_path)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO page_conversion_status (job_id, url, host, status, markdown, error, artifact_path)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(job_id, url) DO UPDATE SET
+                    host = excluded.host,
                     status = excluded.status,
                     markdown = excluded.markdown,
                     error = excluded.error,
@@ -98,11 +105,12 @@ class SqlitePageErrorRepository(PageErrorRepository):
                 """
                 SELECT url
                 FROM page_conversion_status
-                WHERE status = 'success'
+                WHERE status = 'success' AND host = ?
                 """,
+                (target_host,),
             )
             rows = cursor.fetchall()
-        return {row["url"] for row in rows if normalize_host(row["url"]) == target_host}
+        return {row["url"] for row in rows}
 
     def get_successful_markdown_by_base(self, base_url: str) -> dict[str, str]:
         """Return {url: markdown} for all successful pages under a base_url (cross-job)."""
@@ -113,12 +121,9 @@ class SqlitePageErrorRepository(PageErrorRepository):
                 """
                 SELECT url, markdown
                 FROM page_conversion_status
-                WHERE status = 'success' AND markdown IS NOT NULL
+                WHERE status = 'success' AND markdown IS NOT NULL AND host = ?
                 """,
+                (target_host,),
             )
             rows = cursor.fetchall()
-        return {
-            row["url"]: row["markdown"]
-            for row in rows
-            if normalize_host(row["url"]) == target_host
-        }
+        return {row["url"]: row["markdown"] for row in rows}

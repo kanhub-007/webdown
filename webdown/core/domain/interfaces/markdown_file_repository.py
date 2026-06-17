@@ -18,5 +18,10 @@ class MarkdownFileRepository(ABC):
         """Retrieve a generated markdown file by job ID."""
 
     @abstractmethod
-    def list_markdown_files(self) -> list[MarkdownFileMetadata]:
-        """List generated markdown file metadata without content."""
+    def list_markdown_files(self, limit: int = 100, offset: int = 0) -> list[MarkdownFileMetadata]:
+        """List generated markdown file metadata without content, newest first.
+
+        Args:
+            limit: Maximum number of rows to return (default 100).
+            offset: Number of rows to skip for pagination.
+        """

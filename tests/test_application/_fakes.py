@@ -77,7 +77,7 @@ class InMemoryMarkdownFileRepository(MarkdownFileRepository):
     def get_markdown_file(self, job_id: str) -> MarkdownFile | None:
         return self._files.get(job_id)
 
-    def list_markdown_files(self) -> list[MarkdownFileMetadata]:
+    def list_markdown_files(self, limit: int = 100, offset: int = 0) -> list[MarkdownFileMetadata]:
         return [
             MarkdownFileMetadata(
                 id=f.id,

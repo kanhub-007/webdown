@@ -11,8 +11,13 @@ class ListMarkdownFilesUseCase:
         """Initialize with the markdown file repository."""
         self._file_repository = file_repository
 
-    def execute(self) -> list[MarkdownFileMetadataResult]:
-        """List generated markdown file metadata."""
+    def execute(self, limit: int = 100, offset: int = 0) -> list[MarkdownFileMetadataResult]:
+        """List generated markdown file metadata.
+
+        Args:
+            limit: Maximum number of files to return (default 100).
+            offset: Number of files to skip for pagination.
+        """
         return [
             MarkdownFileMetadataResult(
                 id=file.id,
@@ -24,5 +29,5 @@ class ListMarkdownFilesUseCase:
                 status=file.status,
                 base_url=file.base_url,
             )
-            for file in self._file_repository.list_markdown_files()
+            for file in self._file_repository.list_markdown_files(limit=limit, offset=offset)
         ]

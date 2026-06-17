@@ -29,6 +29,9 @@ _AD_TRACKING_KEYWORDS = [
 ]
 
 
+_CONSENT_CHAIN: ConsentHandler | None = None
+
+
 def _build_consent_chain() -> ConsentHandler:
     """Build the Chain of Responsibility for cookie consent handling."""
     yahoo = YahooScrollConsentHandler()
@@ -38,9 +41,17 @@ def _build_consent_chain() -> ConsentHandler:
     return yahoo
 
 
+def _get_consent_chain() -> ConsentHandler:
+    """Return the cached consent handler chain (built once, reused)."""
+    global _CONSENT_CHAIN
+    if _CONSENT_CHAIN is None:
+        _CONSENT_CHAIN = _build_consent_chain()
+    return _CONSENT_CHAIN
+
+
 async def _handle_consent(page: object) -> bool:
     """Handle cookie consent banners using the Chain of Responsibility."""
-    return await _build_consent_chain().try_handle(page)
+    return await _get_consent_chain().try_handle(page)
 
 
 async def _handle_consent_in_iframes(page: object, url: str) -> bool:

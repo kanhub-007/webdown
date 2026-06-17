@@ -4,12 +4,14 @@ import json
 import logging
 import re
 import time
+import time as _time_module
 from datetime import datetime, timezone
 from html import unescape
 from pathlib import Path
 
 import feedparser
 import httpx
+
 from cachetools import TTLCache
 
 from webdown.core.domain.entities.feed_item import FeedItem
@@ -50,6 +52,10 @@ headers = {
     "Cache-Control": "no-cache",
 }
 cache = TTLCache(maxsize=1, ttl=300)
+# Negative cache: a short-lived TTL cache so a failing feed isn't re-fetched
+# on every call. {url: expiry_timestamp}
+_negative_cache: dict[str, float] = {}
+_NEGATIVE_CACHE_TTL = 60  # seconds before retrying a failed feed
 
 
 def _clean_html(text: str) -> str:
@@ -104,9 +110,20 @@ async def aggregate_all(published_after: datetime | None = None) -> list[FeedIte
     seen_links: set[str] = set()
     results: list[FeedItem] = []
 
+    now = _time_module.time()
+
+    # Purge expired negative-cache entries.
+    for url in list(_negative_cache):
+        if _negative_cache[url] < now:
+            del _negative_cache[url]
+
     for feed in FEEDS:
+        feed_url = feed["url"]
+        if feed_url in _negative_cache:
+            logger.debug("Skipping %s (in negative cache)", feed_url)
+            continue
         try:
-            entries = await _fetch_feed(feed["url"])
+            entries = await _fetch_feed(feed_url)
             for entry in entries:
                 item = _normalize_item(entry, feed["name"])
                 if not item.link or item.link in seen_links:
@@ -116,6 +133,8 @@ async def aggregate_all(published_after: datetime | None = None) -> list[FeedIte
                 seen_links.add(item.link)
                 results.append(item)
         except Exception:
+            logger.warning("Feed fetch failed for %s — caching failure for %ds", feed_url, _NEGATIVE_CACHE_TTL)
+            _negative_cache[feed_url] = now + _NEGATIVE_CACHE_TTL
             continue
 
     results.sort(key=lambda x: x.published or datetime.min, reverse=True)

@@ -9,6 +9,7 @@ to enable per-page export and resume.
 """
 
 import logging
+import os
 import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor
@@ -26,6 +27,49 @@ from webdown.core.domain.interfaces.page_renderer import PageRenderer
 from webdown.core.domain.interfaces.sitemap_discovery_service import SitemapDiscoveryService
 
 logger = logging.getLogger(__name__)
+
+# Thread-pool worker count for the conversion phase.  lxml (the C extension
+# behind BeautifulSoup) releases the GIL during parsing, so threads *do* provide
+# real concurrency.  Keep the pool small enough to avoid memory pressure from
+# multiple large HTML strings resident simultaneously.
+_CONVERT_WORKERS = min(4, max(1, (os.cpu_count() or 2) // 2))
+
+
+def _convert_one_page_static(
+    html_to_markdown_converter: "HtmlToMarkdownConverter",
+    crash_artifact_writer: "CrashArtifactWriter | None",
+    capture: bool,
+    job_id: str,
+    url: str,
+    html: str | None,
+) -> "PageConversionStatus":
+    """Convert a single rendered page into a PageConversionStatus (never raises).
+
+    Module-level to allow future migration to ProcessPoolExecutor without
+    pickle-bound-method complications.
+    """
+    from webdown.core.domain.entities.page_conversion_status import PageConversionStatus
+
+    if not html:
+        return PageConversionStatus(url=url, status="failed", error=f"No HTML content for {url}")
+    try:
+        markdown = html_to_markdown_converter.convert(html, url)
+    except Exception as error:
+        message = f"Error converting {url}: {error}"
+        logger.error(message)
+        artifact_path = None
+        if capture and crash_artifact_writer is not None:
+            artifact_path = crash_artifact_writer.write(
+                job_id, url, html, traceback.format_exc()
+            )
+        return PageConversionStatus(
+            url=url, status="failed", error=message, artifact_path=artifact_path
+        )
+    if not markdown or not markdown.strip():
+        return PageConversionStatus(
+            url=url, status="failed", error=f"Conversion resulted in empty markdown for {url}"
+        )
+    return PageConversionStatus(url=url, status="success", markdown=markdown)
 
 
 class GenerateAllPagesMarkdownUseCase:
@@ -169,43 +213,27 @@ class GenerateAllPagesMarkdownUseCase:
         capture: bool = False,
     ) -> list[PageConversionStatus]:
         """Convert rendered HTML pages to per-page conversion statuses."""
-        inputs = [(url, html_results.get(url)) for url in page_urls]
         results: list[PageConversionStatus] = []
 
-        with ThreadPoolExecutor() as executor:
-            for index, status in enumerate(
-                executor.map(self._convert_one_page, inputs, [capture] * len(inputs), [job_id] * len(inputs))
-            ):
+        with ThreadPoolExecutor(max_workers=_CONVERT_WORKERS) as executor:
+            futures = [
+                executor.submit(
+                    _convert_one_page_static,
+                    self._html_to_markdown_converter,
+                    self._crash_artifact_writer,
+                    capture,
+                    job_id,
+                    url,
+                    html_results.get(url),
+                )
+                for url in page_urls
+            ]
+            for index, future in enumerate(futures):
+                status = future.result()
                 results.append(status)
                 progress = int(total_pages * 0.5) + (index + 1) * 0.5
                 self._job_repository.update_job_progress(job_id, int(progress), "processing")
         return results
-
-    def _convert_one_page(
-        self, args: tuple[str, str | None], capture: bool = False, job_id: str = ""
-    ) -> PageConversionStatus:
-        """Convert a single rendered page into a PageConversionStatus (never raises)."""
-        url, html = args
-        if not html:
-            return PageConversionStatus(url=url, status="failed", error=f"No HTML content for {url}")
-        try:
-            markdown = self._html_to_markdown_converter.convert(html, url)
-        except Exception as error:
-            message = f"Error converting {url}: {error}"
-            logger.error(message)
-            artifact_path = None
-            if capture and self._crash_artifact_writer is not None:
-                artifact_path = self._crash_artifact_writer.write(
-                    job_id, url, html, traceback.format_exc()
-                )
-            return PageConversionStatus(
-                url=url, status="failed", error=message, artifact_path=artifact_path
-            )
-        if not markdown or not markdown.strip():
-            return PageConversionStatus(
-                url=url, status="failed", error=f"Conversion resulted in empty markdown for {url}"
-            )
-        return PageConversionStatus(url=url, status="success", markdown=markdown)
 
     def _save_combined_markdown(
         self,

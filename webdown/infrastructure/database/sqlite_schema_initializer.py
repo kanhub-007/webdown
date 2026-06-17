@@ -56,6 +56,7 @@ class SqliteSchemaInitializer:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     job_id TEXT NOT NULL,
                     url TEXT NOT NULL,
+                    host TEXT NOT NULL DEFAULT '',
                     status TEXT NOT NULL,
                     markdown TEXT,
                     error TEXT,
@@ -69,6 +70,12 @@ class SqliteSchemaInitializer:
             self._add_column_if_missing(cursor, "job_progress", "failed_pages", "INTEGER DEFAULT 0")
             self._add_column_if_missing(cursor, "job_progress", "total_available", "INTEGER")
             self._add_column_if_missing(cursor, "job_progress", "truncated", "INTEGER")
+            # Backwards-compatible: host column for fast host-based filtering.
+            self._add_column_if_missing(cursor, "page_conversion_status", "host", "TEXT NOT NULL DEFAULT ''")
+            # Performance indexes for hot query patterns.
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_pcs_status_host ON page_conversion_status(status, host)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_pcs_job_status ON page_conversion_status(job_id, status)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_mf_created_at ON markdown_files(created_at)")
             conn.commit()
 
     @staticmethod

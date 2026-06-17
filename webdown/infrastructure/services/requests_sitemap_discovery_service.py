@@ -11,6 +11,7 @@ from __future__ import annotations
 import gzip
 import logging
 import re
+import threading
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
@@ -33,23 +34,24 @@ logger = logging.getLogger(__name__)
 # Tunables for concurrency and batching
 MAX_WORKERS = 12
 BATCH_SIZE = 32
+MAX_SITEMAP_COUNT = 500  # safety cap: don't chase infinitely-nested sitemaps
 
 # Precompiled regex for faster robots.txt parsing
 _SITEMAP_RE = re.compile(r"^\s*sitemap:\s*(\S+)", re.IGNORECASE)
 
-# Shared HTTP session with connection pooling
-_session: requests.Session | None = None
+# Thread-local session — requests.Session is not thread-safe for sharing.
+# Each thread gets its own session with a small connection pool.
+_thread_local = threading.local()
 
 
 def _get_session() -> requests.Session:
-    global _session
-    if _session is None:
+    if not hasattr(_thread_local, "session"):
         s = requests.Session()
-        adapter = HTTPAdapter(pool_connections=MAX_WORKERS, pool_maxsize=MAX_WORKERS * 4)
+        adapter = HTTPAdapter(pool_connections=4, pool_maxsize=16)
         s.mount("http://", adapter)
         s.mount("https://", adapter)
-        _session = s
-    return _session
+        _thread_local.session = s
+    return _thread_local.session
 
 
 def _normalize_base_url(base_url: str) -> str:
@@ -359,6 +361,14 @@ def discover_website_pages(base_url: str, max_pages: int | None = None) -> tuple
             # Discover ALL pages so the caller can report the true total and
             # whether results were truncated. The cap is applied after dedup
             # (see below), not during collection.
+            # Safety cap on total sitemap count to prevent unbounded growth
+            # from pathological sitemap structures (deeply nested indexes).
+            if len(visited) >= MAX_SITEMAP_COUNT:
+                logger.warning(
+                    "Sitemap discovery hit %d sitemap limit — truncating",
+                    MAX_SITEMAP_COUNT,
+                )
+                break
             # Take a batch of sitemap URLs to fetch concurrently
             batch: list[str] = []
             while queue and len(batch) < BATCH_SIZE:

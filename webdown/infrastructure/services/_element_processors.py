@@ -229,10 +229,9 @@ def _process_list_item(element: Tag, output_lines: list[str], base_url: str) -> 
 def _extract_li_text_without_code(element: Tag, base_url: str) -> str:
     """Extract list-item text after removing code blocks."""
     try:
-        li_soup = BeautifulSoup(str(element), "lxml")
-        li_copy = li_soup.find("li")
-        if not li_copy:
-            return extract_text_with_links(element, base_url).strip()
+        from copy import deepcopy
+
+        li_copy = deepcopy(element)
         for pre in li_copy.find_all("pre", attrs={"data-code-block": "true"}):
             pre.decompose()
         for code_tag in li_copy.find_all("code"):
@@ -242,7 +241,7 @@ def _extract_li_text_without_code(element: Tag, base_url: str) -> str:
                 if match:
                     prefix = match.group(1).strip()
                     if prefix:
-                        new_code = li_soup.new_tag("code")
+                        new_code = li_copy.new_tag("code")
                         new_code.string = prefix
                         code_tag.replace_with(new_code)
                     else:

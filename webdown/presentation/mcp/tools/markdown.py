@@ -203,7 +203,8 @@ def register_markdown_tools(server: object) -> None:
         description=(
             "Download completed Markdown content by job ID. "
             "Returns the full Markdown text plus metadata (file size, base URL). "
-            "The content can be large — it contains the entire converted website or repository."
+            "For large conversions (>5 MB), use save_markdown_to_file instead to "
+            "avoid shipping megabytes through the response."
         ),
     )
     def download_markdown(job_id: str) -> dict:
@@ -211,6 +212,15 @@ def register_markdown_tools(server: object) -> None:
         result = create_get_markdown_file_use_case().execute(job_id)
         if result is None:
             return {"error": "File not found", "job_id": job_id}
+        max_size = 5 * 1024 * 1024  # 5 MB
+        if result.file_size and result.file_size > max_size:
+            return {
+                "error": "File too large for download",
+                "job_id": job_id,
+                "file_size": result.file_size,
+                "max_download_size": max_size,
+                "hint": "Use save_markdown_to_file to write this conversion to disk instead.",
+            }
         return {
             "job_id": job_id,
             "base_url": result.base_url,
