@@ -42,11 +42,13 @@ def test_page_conversion_status_failed_defaults_markdown_none() -> None:
 
 def test_markdown_job_has_backwards_compatible_resilience_fields() -> None:
     """MarkdownJob gains failed_pages (and nullable truncation fields) with defaults."""
+    from datetime import datetime, timezone
+
     job = MarkdownJob(
         job_id="J",
         status="completed_with_errors",
-        created_at="2026-01-01T00:00:00",
-        updated_at="2026-01-01T00:00:00",
+        created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        updated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
         total_pages=534,
         processed_pages=534,
     )

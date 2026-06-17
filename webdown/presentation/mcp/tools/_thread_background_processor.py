@@ -14,14 +14,7 @@ class ThreadBackgroundProcessor(BackgroundProcessor):
     where the caller should get an immediate job_id and poll for progress.
     """
 
-    def submit(self, task: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
-        """Submit the task to a daemon thread and return an empty tracking ID.
-
-        Thread-based execution does not provide a job ID distinct from the
-        application-level job_id created by the use case, so this returns
-        an empty string. The caller should use the job_id returned by the
-        use case itself.
-        """
+    def submit(self, task: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
+        """Submit the task to a daemon thread (does not block the caller)."""
         thread = threading.Thread(target=task, args=args, kwargs=kwargs, daemon=True, name="mcp-bg-job")
         thread.start()
-        return ""

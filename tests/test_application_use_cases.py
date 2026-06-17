@@ -28,7 +28,7 @@ def test_start_single_page_markdown_job() -> None:
 
     job_repo = SimpleNamespace(create_job=lambda job_id, total_pages: created_jobs.append((job_id, total_pages)))
     generation_use_case = SimpleNamespace(execute=execute_generation)
-    bg = SimpleNamespace(submit=lambda task, *args, **kwargs: submissions.append((task, args, kwargs)) or "")
+    bg = SimpleNamespace(submit=lambda task, *args, **kwargs: submissions.append((task, args, kwargs)))
     use_case = StartSinglePageMarkdownJobUseCase(job_repo, generation_use_case)
 
     result = use_case.execute(
@@ -42,7 +42,8 @@ def test_start_single_page_markdown_job() -> None:
     assert created_jobs == [(result.job_id, 1)]
     assert len(submissions) == 1
     assert submissions[0][0] is generation_use_case.execute
-    assert submissions[0][1] == (result.job_id, "https://example.com", "127.0.0.1")
+    assert submissions[0][1] == (result.job_id,)
+    assert submissions[0][2] == {"url": "https://example.com", "ip_address": "127.0.0.1"}
 
 
 def test_start_all_pages_markdown_job() -> None:
@@ -64,7 +65,7 @@ def test_start_all_pages_markdown_job() -> None:
 
     job_repo = SimpleNamespace(create_job=lambda job_id, total_pages: created_jobs.append((job_id, total_pages)))
     generation_use_case = SimpleNamespace(execute=execute_generation)
-    bg = SimpleNamespace(submit=lambda task, *args, **kwargs: submissions.append((task, args, kwargs)) or "")
+    bg = SimpleNamespace(submit=lambda task, *args, **kwargs: submissions.append((task, args, kwargs)))
     use_case = StartAllPagesMarkdownJobUseCase(job_repo, generation_use_case)
 
     result = use_case.execute(
@@ -76,7 +77,16 @@ def test_start_all_pages_markdown_job() -> None:
     assert result.job_id is not None
     assert created_jobs == [(result.job_id, 0)]
     assert len(submissions) == 1
-    assert submissions[0][1] == (result.job_id, "https://example.com", 5, ["docs"], None, "10.0.0.1", False, False)
+    assert submissions[0][1] == (result.job_id,)
+    assert submissions[0][2] == {
+        "base_url": "https://example.com",
+        "max_pages": 5,
+        "whitelist_patterns": ["docs"],
+        "blacklist_patterns": None,
+        "ip_address": "10.0.0.1",
+        "resume": False,
+        "capture_artifacts": False,
+    }
 
 
 def test_start_github_repo_markdown_job() -> None:
@@ -89,7 +99,7 @@ def test_start_github_repo_markdown_job() -> None:
 
     job_repo = SimpleNamespace(create_job=lambda job_id, total_pages: created_jobs.append((job_id, total_pages)))
     generation_use_case = SimpleNamespace(execute=execute_generation)
-    bg = SimpleNamespace(submit=lambda task, *args, **kwargs: submissions.append((task, args, kwargs)) or "")
+    bg = SimpleNamespace(submit=lambda task, *args, **kwargs: submissions.append((task, args, kwargs)))
     use_case = StartGitHubRepoMarkdownJobUseCase(job_repo, generation_use_case)
 
     result = use_case.execute(
@@ -100,19 +110,22 @@ def test_start_github_repo_markdown_job() -> None:
 
     assert result.job_id is not None
     assert created_jobs == [(result.job_id, 1)]
-    assert submissions[0][1] == (result.job_id, "https://github.com/user/repo", "127.0.0.1")
+    assert submissions[0][1] == (result.job_id,)
+    assert submissions[0][2] == {"repo_url": "https://github.com/user/repo", "ip_address": "127.0.0.1"}
 
 
 def test_get_job_progress_returns_dto() -> None:
     """GetJobProgressUseCase maps domain entity to DTO."""
+    from datetime import datetime, timezone
+
     job_repo = SimpleNamespace(
         get_job_progress=lambda job_id: SimpleNamespace(
             job_id="job-1",
             status="completed",
             total_pages=5,
             processed_pages=5,
-            created_at="2024-01-01",
-            updated_at="2024-01-02",
+            created_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+            updated_at=datetime(2024, 1, 2, tzinfo=timezone.utc),
             error_message=None,
             failed_pages=0,
             total_available=None,
@@ -136,12 +149,14 @@ def test_get_job_progress_returns_none_for_missing() -> None:
 
 def test_list_markdown_files_returns_dtos() -> None:
     """ListMarkdownFilesUseCase maps domain entities to DTOs."""
+    from datetime import datetime, timezone
+
     file_repo = SimpleNamespace(
         list_markdown_files=lambda limit=100, offset=0: [
             MarkdownFileMetadata(
                 id=1,
                 job_id="a",
-                created_at="2024-01-01",
+                created_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
                 ip_address="127.0.0.1",
                 file_size=100,
                 generation_time_seconds=1.0,
@@ -151,7 +166,7 @@ def test_list_markdown_files_returns_dtos() -> None:
             MarkdownFileMetadata(
                 id=2,
                 job_id="b",
-                created_at="2024-01-02",
+                created_at=datetime(2024, 1, 2, tzinfo=timezone.utc),
                 ip_address="127.0.0.2",
                 file_size=200,
                 generation_time_seconds=2.0,

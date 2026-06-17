@@ -9,5 +9,5 @@ class BackgroundProcessor(ABC):
     """Submits work to a background processor."""
 
     @abstractmethod
-    def submit(self, task: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
-        """Submit a background task and return a tracking identifier."""
+    def submit(self, task: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
+        """Submit a background task for execution (may be sync or async)."""

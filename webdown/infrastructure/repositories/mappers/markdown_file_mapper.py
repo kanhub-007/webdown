@@ -1,10 +1,21 @@
 """Mapper functions for markdown file repository rows."""
 
+from datetime import datetime, timezone
 from sqlite3 import Row
 
 from webdown.core.domain.entities.markdown_file import MarkdownFile
 from webdown.core.domain.entities.markdown_file_metadata import MarkdownFileMetadata
 from webdown.core.domain.entities.sitemap_url import SitemapUrl
+
+
+def _parse_dt(value: str | None) -> datetime:
+    """Parse an ISO datetime string from SQLite; return epoch as fallback."""
+    if not value:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return datetime.min.replace(tzinfo=timezone.utc)
 
 
 def markdown_file_from_row(row: Row, sitemap_rows: list[Row]) -> MarkdownFile:
@@ -13,7 +24,7 @@ def markdown_file_from_row(row: Row, sitemap_rows: list[Row]) -> MarkdownFile:
         id=row["id"],
         job_id=row["job_id"],
         content=row["content"],
-        created_at=row["created_at"],
+        created_at=_parse_dt(row["created_at"]),
         ip_address=row["ip_address"],
         file_size=row["file_size"],
         generation_time_seconds=row["generation_time_seconds"],
@@ -30,7 +41,7 @@ def markdown_file_metadata_from_row(row: Row) -> MarkdownFileMetadata:
     return MarkdownFileMetadata(
         id=row["id"],
         job_id=row["job_id"],
-        created_at=row["created_at"],
+        created_at=_parse_dt(row["created_at"]),
         ip_address=row["ip_address"],
         file_size=row["file_size"],
         generation_time_seconds=row["generation_time_seconds"],

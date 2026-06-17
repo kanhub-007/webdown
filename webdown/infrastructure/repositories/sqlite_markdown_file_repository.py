@@ -32,7 +32,7 @@ class SqliteMarkdownFileRepository(MarkdownFileRepository):
                 (
                     markdown_file.job_id,
                     markdown_file.content,
-                    markdown_file.created_at,
+                    markdown_file.created_at.isoformat(),
                     markdown_file.ip_address,
                     markdown_file.file_size,
                     markdown_file.generation_time_seconds,

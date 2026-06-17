@@ -10,7 +10,7 @@ from io import StringIO
 from urllib.parse import urljoin
 
 import pandas as pd
-from bs4 import BeautifulSoup, Tag
+from bs4 import Tag
 
 from webdown.infrastructure.services._markdown_detection import detect_alert_type
 from webdown.infrastructure.services._text_extraction import extract_text_with_links
@@ -177,52 +177,65 @@ def _process_paragraph(element: Tag, output_lines: list[str], base_url: str) -> 
         output_lines.append("")
 
 
-def _process_list_item(element: Tag, output_lines: list[str], base_url: str) -> None:
-    """Process a list item, handling inline code blocks and JSON."""
-    has_code_block = element.find("pre", attrs={"data-code-block": "true"})
-    inline_code_tags = element.find_all("code", recursive=True)
-    json_code_blocks: list[tuple[Tag, str]] = []
-    for code_tag in inline_code_tags:
+def _list_prefix(element: Tag) -> str:
+    """Return '1. ' for ordered lists, '- ' for unordered."""
+    parent = element.find_parent(["ul", "ol"])
+    return "1. " if (parent is not None and parent.name == "ol") else "- "
+
+
+def _strip_copy_tag(text: str) -> str:
+    """Remove '$Copy...$' markers injected by some documentation platforms."""
+    return re.sub(r"\$Copy[^$]*\$", "", text).strip()
+
+
+def _find_json_code_blocks(element: Tag) -> list[tuple[Tag, str]]:
+    """Find inline <code> blocks that contain JSON objects."""
+    result: list[tuple[Tag, str]] = []
+    for code_tag in element.find_all("code", recursive=True):
         if code_tag.find_parent("pre"):
             continue
         code_text = code_tag.get_text().strip()
-        if "{" in code_text and code_text.endswith("}"):
-            match = re.search(r"\{.*\}$", code_text, re.DOTALL)
-            if match:
-                json_code_blocks.append((code_tag, match.group(0)))
+        match = re.search(r"\{.*\}$", code_text, re.DOTALL) if code_text.startswith("{") else None
+        if match:
+            result.append((code_tag, match.group(0)))
+    return result
 
-    parent_list = element.find_parent(["ul", "ol"])
-    is_ordered = parent_list is not None and parent_list.name == "ol"
 
-    if has_code_block or json_code_blocks:
+def _render_code_blocks_in_li(element: Tag, output_lines: list[str], json_blocks: list[tuple[Tag, str]]) -> None:
+    """Append indented Markdown code blocks for <pre> and JSON <code> tags."""
+    for pre in element.find_all("pre", attrs={"data-code-block": "true"}):
+        lang = pre.get("data-language", "")
+        ct = pre.find("code")
+        code_text = _strip_copy_tag(ct.get_text() if ct else pre.get_text())
+        output_lines.append("")
+        output_lines.append(f"   ```{lang}")
+        for line in code_text.split("\n"):
+            output_lines.append(f"   {line}")
+        output_lines.append("   ```")
+        output_lines.append("")
+    for _tag, json_text in json_blocks:
+        json_text = _strip_copy_tag(json_text)
+        output_lines.append("")
+        output_lines.append("   ```json")
+        output_lines.append(f"   {json_text}")
+        output_lines.append("   ```")
+        output_lines.append("")
+
+
+def _process_list_item(element: Tag, output_lines: list[str], base_url: str) -> None:
+    """Process a list item, handling inline code blocks and JSON."""
+    has_code_block = element.find("pre", attrs={"data-code-block": "true"}) is not None
+    json_blocks = _find_json_code_blocks(element)
+    prefix = _list_prefix(element)
+
+    if has_code_block or json_blocks:
         text_before = _extract_li_text_without_code(element, base_url)
         if text_before:
-            prefix = "1. " if is_ordered else "- "
             output_lines.append(prefix + text_before)
-
-        for pre in element.find_all("pre", attrs={"data-code-block": "true"}):
-            lang = pre.get("data-language", "")
-            ct = pre.find("code")
-            code_text = ct.get_text() if ct else pre.get_text()
-            code_text = re.sub(r"\$Copy[^$]*\$", "", code_text).strip()
-            output_lines.append("")
-            output_lines.append(f"   ```{lang}")
-            for line in code_text.split("\n"):
-                output_lines.append(f"   {line}")
-            output_lines.append("   ```")
-            output_lines.append("")
-
-        for _tag, json_text in json_code_blocks:
-            json_text = re.sub(r"\$Copy[^$]*\$", "", json_text).strip()
-            output_lines.append("")
-            output_lines.append("   ```json")
-            output_lines.append(f"   {json_text}")
-            output_lines.append("   ```")
-            output_lines.append("")
+        _render_code_blocks_in_li(element, output_lines, json_blocks)
     else:
         text = extract_text_with_links(element, base_url)
         if text:
-            prefix = "1. " if is_ordered else "- "
             output_lines.append(prefix + text)
 
 

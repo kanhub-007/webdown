@@ -20,7 +20,7 @@ def _markdown_file(job_id: str, content: str) -> MarkdownFile:
     return MarkdownFile(
         job_id=job_id,
         content=content,
-        created_at=datetime.now(timezone.utc).isoformat(),
+        created_at=datetime.now(timezone.utc),
         ip_address="mcp",
         file_size=len(content.encode("utf-8")),
         generation_time_seconds=0.1,

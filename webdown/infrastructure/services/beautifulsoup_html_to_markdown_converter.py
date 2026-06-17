@@ -2,9 +2,6 @@
 DocConvert
  - Responsible for converting HTML to Markdown and pre-processing HTML
    (normalize tables, code blocks, alerts, etc.).
-Exports:
- - normalize_html(html: str) -> str
- - extract_markdown_from_html(html: str, base_url: str) -> str
 """
 
 import logging
@@ -34,7 +31,6 @@ from webdown.infrastructure.services._markdown_detection import (
     _should_skip_element,
     detect_alert_type,
 )
-from webdown.infrastructure.services._text_extraction import extract_text_with_links
 
 logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
@@ -151,30 +147,10 @@ def normalize_html_tables_inplace(soup: BeautifulSoup) -> None:
     )
 
 
-def normalize_html_tables(html_content: str) -> str:
-    """Convert all ARIA tables to standard HTML tables (string in, string out).
-
-    Kept for backward compatibility. Prefer parsing once and using
-    normalize_html_tables_inplace + normalize_code_blocks on the same soup.
-    """
-    soup = BeautifulSoup(html_content, "lxml")
-    normalize_html_tables_inplace(soup)
-    return str(soup)
-
-
 def _normalize_soup(soup: BeautifulSoup) -> BeautifulSoup:
     """Normalize a BeautifulSoup object: convert ARIA tables and mark code blocks."""
     normalize_html_tables_inplace(soup)
     return normalize_code_blocks(soup)
-
-
-def normalize_html(html_content: str) -> str:
-    """Normalize HTML: convert ARIA tables and mark code blocks (string in, string out).
-
-    Kept for backward compatibility. Prefer _normalize_soup for new code paths.
-    """
-    soup = _normalize_soup(BeautifulSoup(html_content, "lxml"))
-    return str(soup)
 
 
 # ---------------------------------------------------------------------------
@@ -182,33 +158,16 @@ def normalize_html(html_content: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def extract_markdown_from_soup(soup: BeautifulSoup, base_url: str) -> str:
-    """Convert HTML to Markdown, handling headings, tables, code, alerts, etc.
-
-    Accepts a pre-parsed BeautifulSoup object (use extract_markdown_from_html
-    for the legacy string-based entry point).
-    """
-    output_lines: list[str] = []
-
+def _build_output_header(soup: BeautifulSoup, base_url: str) -> tuple[list[str], list[str]]:
+    """Build the initial output lines (title) and return them with cleaned path parts."""
     breadcrumb_title = _build_breadcrumb_title(soup, base_url)
     path_parts = [p for p in urlparse(base_url).path.split("/") if p]
     cleaned_parts = [p.replace("-", " ").replace("_", " ") for p in path_parts]
+    return [f"# {breadcrumb_title}", ""], cleaned_parts
 
-    output_lines.append(f"# {breadcrumb_title}")
-    output_lines.append("")
 
-    main_content = soup.find("main") or soup.find("article") or soup.find("body")
-    if not main_content:
-        main_content = soup
-
-    processed: set[int] = set()
-    state: dict = {
-        "first_h1_encountered": False,
-        "first_h1_matches_breadcrumb": None,
-        "last_breadcrumb_part": cleaned_parts[-1].lower() if cleaned_parts else "",
-    }
-
-    # Pass 1: direct children (alerts only)
+def _extract_direct_alerts(main_content: Tag, output_lines: list[str], processed: set[int], base_url: str) -> None:
+    """Pass 1: extract alert blocks from direct children of the main content container."""
     for element in main_content.find_all(recursive=False):
         if id(element) in processed:
             continue
@@ -220,7 +179,43 @@ def extract_markdown_from_soup(soup: BeautifulSoup, base_url: str) -> str:
             _process_alert_element(element, output_lines, base_url)
             _mark_processed(element, processed)
 
-    # Pass 2: all descendants
+
+def _dispatch_element(
+    element: Tag, output_lines: list[str], processed: set[int], base_url: str, state: dict
+) -> None:
+    """Route a single HTML element to the appropriate processor function."""
+    tag_name = element.name
+    if tag_name in ("h1", "h2", "h3", "h4", "h5", "h6"):
+        _process_heading_element(element, output_lines, base_url, state)
+        processed.add(id(element))
+    elif tag_name == "pre" and element.get("data-code-block") == "true":
+        _process_code_block(element, output_lines)
+        processed.add(id(element))
+    elif tag_name == "details":
+        _process_details_element(element, output_lines, base_url)
+        _mark_processed(element, processed)
+    elif tag_name == "dl":
+        _process_definition_list(element, output_lines, base_url)
+        _mark_processed(element, processed)
+    elif tag_name == "figure":
+        _process_figure(element, output_lines, base_url)
+        _mark_processed(element, processed)
+    elif tag_name == "img":
+        _process_image(element, output_lines, base_url)
+        processed.add(id(element))
+    elif tag_name == "table":
+        _process_table(element, output_lines)
+        processed.add(id(element))
+    elif tag_name == "p":
+        _process_paragraph(element, output_lines, base_url)
+        processed.add(id(element))
+    elif tag_name == "li":
+        _process_list_item(element, output_lines, base_url)
+        processed.add(id(element))
+
+
+def _extract_body_elements(main_content: Tag, output_lines: list[str], processed: set[int], base_url: str, state: dict) -> None:
+    """Pass 2: walk all descendants, filter noise, and dispatch each element."""
     for element in main_content.descendants:
         if _should_skip_element(element, processed):
             continue
@@ -238,45 +233,44 @@ def extract_markdown_from_soup(soup: BeautifulSoup, base_url: str) -> str:
             _mark_processed(element, processed)
             continue
 
-        tag_name = element.name
-        if tag_name in ("h1", "h2", "h3", "h4", "h5", "h6"):
-            _process_heading_element(element, output_lines, base_url, state)
-            processed.add(id(element))
-        elif tag_name == "pre" and element.get("data-code-block") == "true":
-            _process_code_block(element, output_lines)
-            processed.add(id(element))
-        elif tag_name == "details":
-            _process_details_element(element, output_lines, base_url)
-            _mark_processed(element, processed)
-        elif tag_name == "dl":
-            _process_definition_list(element, output_lines, base_url)
-            _mark_processed(element, processed)
-        elif tag_name == "figure":
-            _process_figure(element, output_lines, base_url)
-            _mark_processed(element, processed)
-        elif tag_name == "img":
-            _process_image(element, output_lines, base_url)
-            processed.add(id(element))
-        elif tag_name == "table":
-            _process_table(element, output_lines)
-            processed.add(id(element))
-        elif tag_name == "p":
-            _process_paragraph(element, output_lines, base_url)
-            processed.add(id(element))
-        elif tag_name == "li":
-            _process_list_item(element, output_lines, base_url)
-            processed.add(id(element))
+        _dispatch_element(element, output_lines, processed, base_url, state)
 
-    # Remove excessive blank lines
-    cleaned_lines: list[str] = []
+
+def _compact_output(output_lines: list[str]) -> list[str]:
+    """Remove consecutive blank lines from the output."""
+    cleaned: list[str] = []
     prev_blank = False
     for line in output_lines:
         is_blank = not line.strip()
         if is_blank and prev_blank:
             continue
-        cleaned_lines.append(line)
+        cleaned.append(line)
         prev_blank = is_blank
+    return cleaned
 
+
+def extract_markdown_from_soup(soup: BeautifulSoup, base_url: str) -> str:
+    """Convert HTML to Markdown: normalize, extract, compact.
+
+    Accepts a pre-parsed BeautifulSoup object.
+    """
+    output_lines, cleaned_parts = _build_output_header(soup, base_url)
+
+    main_content = soup.find("main") or soup.find("article") or soup.find("body")
+    if not main_content:
+        main_content = soup
+
+    processed: set[int] = set()
+    state: dict = {
+        "first_h1_encountered": False,
+        "first_h1_matches_breadcrumb": None,
+        "last_breadcrumb_part": cleaned_parts[-1].lower() if cleaned_parts else "",
+    }
+
+    _extract_direct_alerts(main_content, output_lines, processed, base_url)
+    _extract_body_elements(main_content, output_lines, processed, base_url, state)
+
+    cleaned_lines = _compact_output(output_lines)
     content_lines = [line for line in cleaned_lines if line.strip() and not line.strip().startswith("#")]
     if not content_lines:
         logger.warning("\n  Page '%s' has no content beyond headings - EXCLUDING", base_url)

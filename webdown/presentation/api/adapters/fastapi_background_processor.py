@@ -15,7 +15,6 @@ class FastApiBackgroundProcessor(BackgroundProcessor):
         """Initialize with a FastAPI BackgroundTasks instance."""
         self._background_tasks = background_tasks
 
-    def submit(self, task: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
-        """Submit a background task and return an empty adapter-specific ID."""
+    def submit(self, task: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
+        """Submit a background task via FastAPI BackgroundTasks."""
         self._background_tasks.add_task(task, *args, **kwargs)
-        return ""

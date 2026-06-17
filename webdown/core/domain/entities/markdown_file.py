@@ -1,6 +1,7 @@
 """Domain entity for a generated markdown file."""
 
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from webdown.core.domain.entities.sitemap_url import SitemapUrl
 
@@ -11,7 +12,7 @@ class MarkdownFile:
 
     job_id: str
     content: str
-    created_at: str
+    created_at: datetime
     ip_address: str
     file_size: int
     generation_time_seconds: float

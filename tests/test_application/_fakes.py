@@ -24,7 +24,7 @@ class InMemoryMarkdownJobRepository(MarkdownJobRepository):
     def create_job(self, job_id: str, total_pages: int) -> None:
         from datetime import datetime, timezone
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(timezone.utc)
         self._jobs[job_id] = MarkdownJob(
             job_id=job_id,
             status="processing",
@@ -59,7 +59,7 @@ class InMemoryMarkdownJobRepository(MarkdownJobRepository):
             job.total_available = total_available
         if truncated is not None:
             job.truncated = truncated
-        job.updated_at = datetime.now(timezone.utc).isoformat()
+        job.updated_at = datetime.now(timezone.utc)
 
     def get_job_progress(self, job_id: str) -> MarkdownJob | None:
         return self._jobs.get(job_id)

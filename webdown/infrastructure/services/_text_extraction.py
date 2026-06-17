@@ -10,6 +10,19 @@ from urllib.parse import urljoin
 from bs4 import NavigableString, Tag
 
 
+def _resolve_sibling_text(next_sibling: object | None) -> str:
+    """Extract the visible text from a BeautifulSoup sibling node.
+
+    Handles the edge case where ``len()`` on a Tag counts children (not text
+    length), so calling ``get_text()`` is required to determine emptiness.
+    """
+    if isinstance(next_sibling, str):
+        return str(next_sibling)
+    if next_sibling is not None:
+        return next_sibling.get_text()
+    return ""
+
+
 def extract_text_with_links(element: Tag | NavigableString, base_url: str) -> str:
     """Extract text from an element, preserving links as markdown [text](url)."""
     if isinstance(element, NavigableString):
@@ -30,20 +43,7 @@ def extract_text_with_links(element: Tag | NavigableString, base_url: str) -> st
             elif child.name in ("strong", "b"):
                 text = child.get_text(strip=True)
                 if text:
-                    next_sibling = child.next_sibling
-                    # Compute the sibling's text once and check it is non-empty
-                    # before indexing. Do NOT use ``len(next_sibling)`` as a guard:
-                    # for a BeautifulSoup Tag it counts *children*, not text length
-                    # (e.g. Substack headings append a decorative
-                    # <div class="header-anchor-parent"> whose children carry no
-                    # text, so len > 0 but get_text() == ""). ``next_sibling`` may
-                    # also be None when the bold run is the last child.
-                    if isinstance(next_sibling, str):
-                        sibling_text = str(next_sibling)
-                    elif next_sibling is not None:
-                        sibling_text = next_sibling.get_text()
-                    else:
-                        sibling_text = ""
+                    sibling_text = _resolve_sibling_text(child.next_sibling)
                     if sibling_text:
                         first_char = sibling_text[0]
                         if not first_char.isspace() and first_char not in ".,;:!?)":

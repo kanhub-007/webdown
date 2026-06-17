@@ -1,5 +1,6 @@
 """Tests for SQLite repository implementations."""
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 from webdown.core.domain.entities.markdown_file import MarkdownFile
@@ -31,7 +32,7 @@ def test_sqlite_markdown_repositories_store_progress_and_files(tmp_path: Path) -
         MarkdownFile(
             job_id="job-1",
             content="# Content",
-            created_at="2024-01-01T00:00:00",
+            created_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
             ip_address="127.0.0.1",
             file_size=9,
             generation_time_seconds=1.5,

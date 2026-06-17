@@ -1,9 +1,6 @@
-"""
-WebSiteExplorer
- - Responsible for discovering sitemap information and site metadata files.
-Exports:
- - discover_website_pages(base_url: str, max_pages: int | None = None) -> (list[dict], list[str], int)
- - check_site_metadata_files(base_url: str) -> dict[str, str]
+"""Sitemap discovery service backed by requests and lxml.
+
+Public API: RequestsSitemapDiscoveryService (domain interface implementation).
 """
 
 from __future__ import annotations
@@ -164,7 +161,7 @@ def _discover_sitemap_urls(base_url: str) -> set[str]:
     return discovered
 
 
-def check_site_metadata_files(base_url: str) -> dict[str, str]:
+def _check_site_metadata_files(base_url: str) -> dict[str, str]:
     """
     Checks for common metadata files like robots.txt, RSS/Atom feeds, security.txt, and humans.txt.
     Returns a dictionary of {file_type: found_url}.
@@ -344,11 +341,8 @@ def _parse_lastmod(lastmod: str | None) -> float | None:
     return dt.timestamp()
 
 
-def discover_website_pages(base_url: str, max_pages: int | None = None) -> tuple[list[dict], list[str]]:
-    """
-    Returns (pages, sitemap_urls_visited)
-    pages: list of {'loc': str, 'lastmod': str | None}
-    """
+def _discover_website_pages(base_url: str, max_pages: int | None = None) -> tuple[list[dict], list[str], int]:
+    """Return (pages, sitemap_urls_visited, total_available)."""
     start_sitemaps = _discover_sitemap_urls(base_url)
     visited: set[str] = set()
     queue: deque[str] = deque(start_sitemaps)
@@ -435,7 +429,7 @@ class RequestsSitemapDiscoveryService(SitemapDiscoveryService):
 
     def discover_website_pages(self, base_url: str, max_pages: int | None = None) -> WebsitePages:
         """Discover website pages from sitemap files."""
-        pages, sitemap_files, total_available = discover_website_pages(base_url, max_pages=max_pages)
+        pages, sitemap_files, total_available = _discover_website_pages(base_url, max_pages=max_pages)
         truncated = (
             max_pages is not None
             and max_pages > 0

@@ -5,7 +5,6 @@ import json
 import logging
 import re
 import time
-import time as _time_module
 from datetime import datetime, timezone
 from html import unescape
 from pathlib import Path
@@ -111,7 +110,7 @@ async def aggregate_all(published_after: datetime | None = None) -> list[FeedIte
     seen_links: set[str] = set()
     results: list[FeedItem] = []
 
-    now = _time_module.time()
+    now = time.time()
 
     # Purge expired negative-cache entries.
     for url in list(_negative_cache):

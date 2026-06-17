@@ -5,7 +5,6 @@ WebPageRenderer
 
 import asyncio
 import logging
-import sys
 from collections.abc import Callable
 
 from playwright.async_api import async_playwright
@@ -29,10 +28,7 @@ _AD_TRACKING_KEYWORDS = [
 ]
 
 
-_CONSENT_CHAIN: ConsentHandler | None = None
-
-
-def _build_consent_chain() -> ConsentHandler:
+def build_consent_chain() -> ConsentHandler:
     """Build the Chain of Responsibility for cookie consent handling."""
     yahoo = YahooScrollConsentHandler()
     selector = SelectorConsentHandler()
@@ -41,20 +37,13 @@ def _build_consent_chain() -> ConsentHandler:
     return yahoo
 
 
-def _get_consent_chain() -> ConsentHandler:
-    """Return the cached consent handler chain (built once, reused)."""
-    global _CONSENT_CHAIN
-    if _CONSENT_CHAIN is None:
-        _CONSENT_CHAIN = _build_consent_chain()
-    return _CONSENT_CHAIN
-
-
-async def _handle_consent(page: object) -> bool:
+async def _handle_consent(page: object, consent_handler: ConsentHandler | None = None) -> bool:
     """Handle cookie consent banners using the Chain of Responsibility."""
-    return await _get_consent_chain().try_handle(page)
+    handler = consent_handler or build_consent_chain()
+    return await handler.try_handle(page)
 
 
-async def _handle_consent_in_iframes(page: object, url: str) -> bool:
+async def _handle_consent_in_iframes(page: object, url: str, consent_handler: ConsentHandler | None = None) -> bool:
     """Try consent handling in content iframes (skip ad/tracking iframes)."""
     try:
         if "consent" not in url.lower() and "guce" not in url.lower():
@@ -68,7 +57,7 @@ async def _handle_consent_in_iframes(page: object, url: str) -> bool:
             if any(kw in frame_url.lower() for kw in _AD_TRACKING_KEYWORDS):
                 continue
             logger.debug("PLAYWRIGHT: Trying iframe: %s", frame_url)
-            if await _handle_consent(frame):
+            if await _handle_consent(frame, consent_handler):
                 return True
             checked += 1
             if checked >= 5:
@@ -115,7 +104,7 @@ async def _scroll_to_bottom(page: object) -> None:
     await page.wait_for_timeout(3000)
 
 
-async def _process_consent_page(page: object, url: str) -> str:
+async def _process_consent_page(page: object, url: str, consent_handler: ConsentHandler | None = None) -> str:
     """Handle a consent redirect page with retries and iframe support."""
     logger.info("PLAYWRIGHT: Detected consent redirect page: %s", url)
     await page.wait_for_timeout(3000)
@@ -139,9 +128,9 @@ async def _process_consent_page(page: object, url: str) -> str:
             break
 
         logger.debug("PLAYWRIGHT: Consent attempt %d/5", attempt + 1)
-        handled = await _handle_consent(page)
+        handled = await _handle_consent(page, consent_handler)
         if not handled:
-            handled = await _handle_consent_in_iframes(page, current)
+            handled = await _handle_consent_in_iframes(page, current, consent_handler)
 
         if handled:
             new_url = await _wait_for_redirect(page, url)
@@ -160,7 +149,7 @@ async def _process_consent_page(page: object, url: str) -> str:
     return page.url
 
 
-async def _process_regular_page(page: object) -> None:
+async def _process_regular_page(page: object, consent_handler: ConsentHandler | None = None) -> None:
     """Handle inline consent modals on a non-redirect page."""
     await page.wait_for_timeout(2000)
     try:
@@ -172,15 +161,15 @@ async def _process_regular_page(page: object) -> None:
     await _scroll_to_reveal(page)
 
     for _attempt in range(3):
-        handled = await _handle_consent(page)
+        handled = await _handle_consent(page, consent_handler)
         if handled:
             await page.wait_for_timeout(1500)
-            await _handle_consent(page)
+            await _handle_consent(page, consent_handler)
         else:
             break
 
 
-async def _process_page(page: object, url: str) -> str:
+async def _process_page(page: object, url: str, consent_handler: ConsentHandler | None = None) -> str:
     """Process a page: navigate, handle consent, scroll, extract HTML.
 
     Uses Template Method pattern — each step is a separate function.
@@ -206,16 +195,16 @@ async def _process_page(page: object, url: str) -> str:
         return html
 
     if _is_consent_page(page.url):
-        await _process_consent_page(page, url)
+        await _process_consent_page(page, url, consent_handler)
     else:
-        await _process_regular_page(page)
+        await _process_regular_page(page, consent_handler)
 
     try:
         await page.wait_for_selector("body", timeout=20000)
     except Exception:
         pass
     await _scroll_to_bottom(page)
-    await _handle_consent(page)
+    await _handle_consent(page, consent_handler)
 
     try:
         await page.wait_for_load_state("networkidle", timeout=15000)
@@ -228,7 +217,7 @@ async def _process_page(page: object, url: str) -> str:
     return html
 
 
-async def _render(url: str) -> str:
+async def _render(url: str, consent_handler: ConsentHandler | None = None) -> str:
     logger.info("PLAYWRIGHT: Launching browser...")
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -237,13 +226,13 @@ async def _render(url: str) -> str:
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         )
         page = await context.new_page()
-        html = await _process_page(page, url)
+        html = await _process_page(page, url, consent_handler)
         logger.debug("PLAYWRIGHT: First 1000 chars:\n%s", html[:1000])
         await browser.close()
         return html
 
 
-async def _render_all(urls: list[str], max_concurrent: int = 5, progress_callback=None) -> dict[str, str]:
+async def _render_all(urls: list[str], max_concurrent: int = 5, progress_callback=None, consent_handler: ConsentHandler | None = None) -> dict[str, str]:
     logger.info(
         "PLAYWRIGHT: Launching browser for %d URLs with %d concurrent tabs...",
         len(urls),
@@ -267,7 +256,7 @@ async def _render_all(urls: list[str], max_concurrent: int = 5, progress_callbac
                 logger.info("PLAYWRIGHT: Processing %s", url)
                 try:
                     page = await context.new_page()
-                    html = await _process_page(page, url)
+                    html = await _process_page(page, url, consent_handler)
                     await page.close()
                     completed_count += 1
                     if progress_callback:
@@ -316,38 +305,33 @@ async def _render_all(urls: list[str], max_concurrent: int = 5, progress_callbac
     return results
 
 
-def render(url: str) -> str:
+def render(url: str, consent_handler: ConsentHandler | None = None) -> str:
     """Synchronous wrapper for rendering a single URL."""
-    return asyncio.run(_render(url))
+    return asyncio.run(_render(url, consent_handler))
 
 
-def render_all(urls: list[str], max_concurrent: int = 5, progress_callback=None) -> dict[str, str]:
+def render_all(urls: list[str], max_concurrent: int = 5, progress_callback=None, consent_handler: ConsentHandler | None = None) -> dict[str, str]:
     """Synchronous wrapper for rendering multiple URLs concurrently."""
-    return asyncio.run(_render_all(urls, max_concurrent, progress_callback))
+    return asyncio.run(_render_all(urls, max_concurrent, progress_callback, consent_handler))
 
 
 class PlaywrightPageRenderer(PageRenderer):
     """Page renderer backed by Playwright."""
 
-    def __init__(self, max_concurrent: int = 5) -> None:
-        """Initialize with a concurrency limit.
+    def __init__(self, max_concurrent: int = 5, consent_handler: ConsentHandler | None = None) -> None:
+        """Initialize with a concurrency limit and optional consent handler.
 
-        Sets the Windows Proactor event loop policy if needed — this is the
-        correct place because the policy must be in place before any asyncio
-        event loop is created, and the renderer is the first consumer.
+        Args:
+            max_concurrent: Maximum number of concurrent browser tabs.
+            consent_handler: Pre-built consent handler chain. When None, a
+                default chain is built on first use.
         """
-        if sys.platform == "win32" and sys.version_info < (3, 14):
-            try:
-                # Proactor event loop policy is required for asyncio subprocess
-                # support on Windows before Python 3.14 (where it became default).
-                asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-            except Exception:
-                pass  # Already set or incompatible platform
         self._max_concurrent = max_concurrent
+        self._consent_handler = consent_handler
 
     def render(self, url: str) -> str | None:
         """Render one URL to HTML."""
-        return render(url)
+        return render(url, consent_handler=self._consent_handler)
 
     def render_all(
         self,
@@ -355,4 +339,4 @@ class PlaywrightPageRenderer(PageRenderer):
         progress_callback: Callable[[int], None] | None = None,
     ) -> dict[str, str | None]:
         """Render multiple URLs to HTML."""
-        return render_all(urls, self._max_concurrent, progress_callback)
+        return render_all(urls, self._max_concurrent, progress_callback, consent_handler=self._consent_handler)

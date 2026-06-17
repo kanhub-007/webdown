@@ -47,7 +47,7 @@ class GenerateSinglePageMarkdownUseCase:
                 MarkdownFile(
                     job_id=job_id,
                     content=markdown,
-                    created_at=datetime.now(timezone.utc).isoformat(),
+                    created_at=datetime.now(timezone.utc),
                     ip_address=ip_address,
                     file_size=len(markdown.encode("utf-8")),
                     generation_time_seconds=time.time() - start_time,

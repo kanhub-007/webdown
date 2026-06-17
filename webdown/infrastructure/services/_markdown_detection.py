@@ -4,10 +4,9 @@ Pure detection / classification functions with no side effects.
 Used by the main extraction loop and element processors.
 """
 
-import re
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlparse
 
-from bs4 import BeautifulSoup, NavigableString, Tag
+from bs4 import BeautifulSoup, Tag
 
 
 def detect_alert_type(element: Tag) -> tuple[bool, str, str, str]:

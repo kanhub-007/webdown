@@ -13,13 +13,6 @@ class SyncBackgroundProcessor(BackgroundProcessor):
     without FastAPI's BackgroundTasks.
     """
 
-    def submit(self, task: Callable[..., Any], *args: Any, **kwargs: Any) -> str:
-        """Execute the task immediately and return an empty tracking ID.
-
-        Synchronous execution provides no separate job ID beyond the
-        application-level job_id created by the use case, so this returns
-        an empty string. The caller should use the job_id returned by the
-        use case itself.
-        """
+    def submit(self, task: Callable[..., Any], *args: Any, **kwargs: Any) -> None:
+        """Execute the task immediately (blocks until complete)."""
         task(*args, **kwargs)
-        return ""
