@@ -13,6 +13,7 @@ from webdown.infrastructure.services.gitingest_github_repository_processor impor
 from webdown.infrastructure.services.playwright_page_renderer import PlaywrightPageRenderer
 from webdown.infrastructure.services.requests_sitemap_discovery_service import RequestsSitemapDiscoveryService
 from webdown.infrastructure.services.requests_site_metadata_service import RequestsSiteMetadataService
+from webdown.infrastructure.services.retrying_page_renderer import RetryingPageRenderer
 
 
 @lru_cache(maxsize=1)
@@ -28,9 +29,9 @@ def create_site_metadata_service() -> RequestsSiteMetadataService:
 
 
 @lru_cache(maxsize=1)
-def create_page_renderer() -> PlaywrightPageRenderer:
-    """Create the page renderer service."""
-    return PlaywrightPageRenderer()
+def create_page_renderer() -> RetryingPageRenderer:
+    """Create the page renderer service (wrapped with retry decorator)."""
+    return RetryingPageRenderer(PlaywrightPageRenderer())
 
 
 @lru_cache(maxsize=1)
