@@ -37,6 +37,8 @@ def test_sitemap_explore_endpoint_uses_discovery_service(
         return SimpleNamespace(
             pages=[SimpleNamespace(loc="https://example.com/docs", lastmod="2024-01-01")],
             sitemap_files_visited=["https://example.com/sitemap.xml"],
+            total_available=1,
+            truncated=False,
         )
 
     main_module.web_index_api.state.explore_sitemap_use_case = SimpleNamespace(execute=fake_explore_sitemap)
@@ -51,6 +53,8 @@ def test_sitemap_explore_endpoint_uses_discovery_service(
         "pages": [{"loc": "https://example.com/docs", "lastmod": "2024-01-01"}],
         "total_count": 1,
         "sitemap_files_visited": ["https://example.com/sitemap.xml"],
+        "total_available": 1,
+        "truncated": False,
     }
 
 
@@ -115,6 +119,9 @@ def test_progress_endpoint_returns_calculated_percent(
             created_at="2024-01-01T00:00:00",
             updated_at="2024-01-01T00:01:00",
             error_message=None,
+            failed_pages=0,
+            total_available=None,
+            truncated=None,
         )
 
     main_module.web_convert_api.state.get_job_progress_use_case = SimpleNamespace(execute=fake_get_job_progress)
@@ -131,6 +138,9 @@ def test_progress_endpoint_returns_calculated_percent(
         "created_at": "2024-01-01T00:00:00",
         "updated_at": "2024-01-01T00:01:00",
         "error_message": None,
+        "failed_pages": 0,
+        "total_available": None,
+        "truncated": None,
     }
 
 

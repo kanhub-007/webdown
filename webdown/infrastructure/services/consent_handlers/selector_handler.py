@@ -81,6 +81,7 @@ class SelectorConsentHandler(ConsentHandler):
                     await page.wait_for_timeout(300)
                     logger.debug("PLAYWRIGHT: Consent button clicked via %s", selector)
                     return True
-            except Exception:
+            except Exception as exc:
+                logger.debug("PLAYWRIGHT: Consent selector %s failed: %s", selector, exc)
                 continue
         return False

@@ -40,6 +40,7 @@ class OverlayCloseHandler(ConsentHandler):
                     await page.wait_for_timeout(300)
                     logger.debug("PLAYWRIGHT: Overlay closed via %s", selector)
                     return True
-            except Exception:
+            except Exception as exc:
+                logger.debug("PLAYWRIGHT: Overlay selector %s failed: %s", selector, exc)
                 continue
         return False

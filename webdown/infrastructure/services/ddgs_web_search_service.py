@@ -11,9 +11,13 @@ from webdown.core.domain.interfaces.web_search_service import WebSearchService
 class DDGSWebSearchService(WebSearchService):
     """Web search service backed by the ddgs library (DuckDuckGo/Bing/Brave)."""
 
-    def __init__(self) -> None:
-        """Initialize the DDGS client."""
-        self._ddgs = DDGS()
+    def __init__(self, ddgs_client: DDGS | None = None) -> None:
+        """Initialize with an optional DDGS client (injectable for testing).
+
+        Args:
+            ddgs_client: A DDGS instance. When None, a default client is created.
+        """
+        self._ddgs: DDGS = ddgs_client if ddgs_client is not None else DDGS()
 
     def search(self, query: str, max_results: int = 20) -> list[SearchResult]:
         """Search the web using DDGS.

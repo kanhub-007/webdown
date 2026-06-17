@@ -7,16 +7,13 @@ from urllib.parse import urlparse
 import pandas as pd
 import streamlit as st
 
-from webdown.infrastructure.services.requests_sitemap_discovery_service import (
-    check_site_metadata_files,
-    discover_website_pages,
-)
+from webdown.core.application.dto.sitemap_explore_request import SitemapExploreRequest
 from webdown.startup.service_factory import (
     create_html_to_markdown_converter,
     create_page_renderer,
-    create_site_metadata_service,
     create_sitemap_discovery_service,
 )
+from webdown.startup.use_case_factory import create_explore_sitemap_use_case
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(name)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -31,12 +28,11 @@ def main() -> None:
     page_renderer = create_page_renderer()
     html_converter = create_html_to_markdown_converter()
     sitemap_service = create_sitemap_discovery_service()
-    metadata_service = create_site_metadata_service()
 
     tab1, tab2, tab3 = st.tabs(["Sitemap Explorer", "Full Site Scraper", "Single Page Scraper"])
 
     with tab1:
-        _render_sitemap_tab(sitemap_service, metadata_service)
+        _render_sitemap_tab()
 
     with tab2:
         _render_full_site_tab(sitemap_service, page_renderer, html_converter)
@@ -45,7 +41,7 @@ def main() -> None:
         _render_single_page_tab(page_renderer, html_converter)
 
 
-def _render_sitemap_tab(sitemap_service: object, metadata_service: object) -> None:
+def _render_sitemap_tab() -> None:
     """Render the sitemap exploration tab."""
     st.header("Sitemap Explorer")
     base_site_url = st.text_input(
@@ -61,25 +57,21 @@ def _render_sitemap_tab(sitemap_service: object, metadata_service: object) -> No
     )
     if st.button("Find sitemap pages"):
         with st.spinner("Discovering sitemaps and pages..."):
-            pages, sitemaps, total_available = discover_website_pages(base_site_url, max_pages=max_sitemap_pages)
-            metadata_files = check_site_metadata_files(base_site_url)
+            use_case = create_explore_sitemap_use_case()
+            result = use_case.execute(SitemapExploreRequest(base_url=base_site_url, max_pages=max_sitemap_pages))
 
-        st.success(f"Found {len(pages)} pages across {len(sitemaps)} sitemap file(s)")
-        if total_available and total_available > len(pages):
-            st.info(f"Showing {len(pages)} of {total_available} available (raise the limit to see more).")
+        st.success(f"Found {len(result.pages)} pages across {len(result.sitemap_files_visited)} sitemap file(s)")
+        if result.total_available and result.total_available > len(result.pages):
+            st.info(f"Showing {len(result.pages)} of {result.total_available} available (raise the limit to see more).")
         with st.expander("Sitemaps visited", expanded=False):
-            for sm in sitemaps:
+            for sm in result.sitemap_files_visited:
                 st.write(sm)
 
-        with st.expander("Other metadata files", expanded=False):
-            if metadata_files:
-                for name, url in metadata_files.items():
-                    st.write(f"{name}: {url}")
-            else:
-                st.write("None found")
-
-        if pages:
-            df_pages = pd.DataFrame(pages)
+        if result.pages:
+            df_pages = pd.DataFrame([
+                {"loc": p.loc, "lastmod": p.lastmod, "changefreq": p.changefreq, "priority": p.priority}
+                for p in result.pages
+            ])
             for c in ["changefreq", "priority"]:
                 if c not in df_pages.columns:
                     df_pages[c] = None
@@ -120,7 +112,10 @@ def _render_full_site_tab(sitemap_service: object, page_renderer: object, html_c
 
     if st.button("Scrape Site & Combine Markdown"):
         with st.spinner(f"Discovering sitemap pages from {full_site_url}..."):
-            pages, _, total_available = discover_website_pages(full_site_url, max_pages=full_max_pages)
+            use_case = create_explore_sitemap_use_case()
+            result = use_case.execute(SitemapExploreRequest(base_url=full_site_url, max_pages=full_max_pages))
+            pages = [{"loc": p.loc, "lastmod": p.lastmod, "changefreq": p.changefreq, "priority": p.priority}
+                     for p in result.pages]
         st.write(f"Found {len(pages)} pages in sitemap (sorted alphabetically).")
 
         page_urls = [p["loc"] for p in pages]

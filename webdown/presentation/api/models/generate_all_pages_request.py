@@ -14,3 +14,9 @@ class GenerateAllPagesRequest(BaseModel):
     blacklist_patterns: list[str] | None = Field(
         default=None, description="Exclude URLs containing these substrings (applied after whitelist)"
     )
+    resume: bool = Field(
+        default=False, description="Skip pages already converted successfully for this site"
+    )
+    capture_artifacts: bool = Field(
+        default=False, description="Save crash HTML + traceback to data/debug/ for failed pages"
+    )

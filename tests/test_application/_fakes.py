@@ -5,8 +5,6 @@ database, so use-case tests exercise orchestration against honest collaborators.
 They are fakes, not recording mocks — assert on returned state, never on calls.
 """
 
-from urllib.parse import urlparse
-
 from webdown.core.domain.entities.markdown_file import MarkdownFile
 from webdown.core.domain.entities.markdown_file_metadata import MarkdownFileMetadata
 from webdown.core.domain.entities.markdown_job import MarkdownJob
@@ -14,12 +12,7 @@ from webdown.core.domain.entities.page_conversion_status import PageConversionSt
 from webdown.core.domain.interfaces.markdown_file_repository import MarkdownFileRepository
 from webdown.core.domain.interfaces.markdown_job_repository import MarkdownJobRepository
 from webdown.core.domain.interfaces.page_error_repository import PageErrorRepository
-
-
-def _normalize_host(url: str) -> str:
-    """Return the hostname of a URL, ignoring a leading 'www.' (mirrors SQLite repo)."""
-    host = urlparse(url).hostname or ""
-    return host[4:] if host.startswith("www.") else host
+from webdown.core.domain.services.url_normalizer import normalize_host
 
 
 class InMemoryMarkdownJobRepository(MarkdownJobRepository):
@@ -136,16 +129,16 @@ class InMemoryPageErrorRepository(PageErrorRepository):
         }
 
     def succeeded_urls(self, base_url: str) -> set[str]:
-        host = _normalize_host(base_url)
+        host = normalize_host(base_url)
         return {
             s.url for s in self._all_statuses()
-            if s.status == "success" and _normalize_host(s.url) == host
+            if s.status == "success" and normalize_host(s.url) == host
         }
 
     def get_successful_markdown_by_base(self, base_url: str) -> dict[str, str]:
-        host = _normalize_host(base_url)
+        host = normalize_host(base_url)
         return {
             s.url: s.markdown
             for s in self._all_statuses()
-            if s.status == "success" and s.markdown is not None and _normalize_host(s.url) == host
+            if s.status == "success" and s.markdown is not None and normalize_host(s.url) == host
         }

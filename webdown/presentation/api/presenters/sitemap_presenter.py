@@ -13,4 +13,6 @@ class SitemapPresenter:
             pages=[SitemapUrlInfo(loc=page.loc, lastmod=page.lastmod) for page in result.pages],
             total_count=len(result.pages),
             sitemap_files_visited=result.sitemap_files_visited,
+            total_available=result.total_available,
+            truncated=result.truncated,
         )

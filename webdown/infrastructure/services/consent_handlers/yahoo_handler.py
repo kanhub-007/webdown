@@ -43,9 +43,11 @@ class YahooScrollConsentHandler(ConsentHandler):
                     await container.evaluate("el => el.focus()")
                     await page.wait_for_timeout(300)
                     logger.debug("PLAYWRIGHT: Scrolled consent container %s", container_selector)
-                except Exception:
+                except Exception as exc:
+                    logger.debug("PLAYWRIGHT: Scroll of %s failed: %s", container_selector, exc)
                     pass
                 return True
-            except Exception:
+            except Exception as exc:
+                logger.debug("PLAYWRIGHT: Consent container %s failed: %s", container_selector, exc)
                 continue
         return False

@@ -18,9 +18,6 @@ from webdown.infrastructure.services.consent_handlers.yahoo_handler import Yahoo
 
 logger = logging.getLogger(__name__)
 
-if sys.platform == "win32":
-    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-
 _AD_TRACKING_KEYWORDS = [
     "ads",
     "ad.",
@@ -322,7 +319,19 @@ class PlaywrightPageRenderer(PageRenderer):
     """Page renderer backed by Playwright."""
 
     def __init__(self, max_concurrent: int = 5) -> None:
-        """Initialize with a concurrency limit."""
+        """Initialize with a concurrency limit.
+
+        Sets the Windows Proactor event loop policy if needed — this is the
+        correct place because the policy must be in place before any asyncio
+        event loop is created, and the renderer is the first consumer.
+        """
+        if sys.platform == "win32" and sys.version_info < (3, 14):
+            try:
+                # Proactor event loop policy is required for asyncio subprocess
+                # support on Windows before Python 3.14 (where it became default).
+                asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+            except Exception:
+                pass  # Already set or incompatible platform
         self._max_concurrent = max_concurrent
 
     def render(self, url: str) -> str | None:

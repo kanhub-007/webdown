@@ -11,3 +11,5 @@ class SitemapResponse(BaseModel):
     pages: list[SitemapUrlInfo]
     total_count: int
     sitemap_files_visited: list[str]
+    total_available: int | None = None
+    truncated: bool = False

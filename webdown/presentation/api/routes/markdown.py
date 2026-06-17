@@ -86,6 +86,8 @@ async def generate_markdown_all_pages(
         max_pages=request.max_pages,
         whitelist_patterns=request.whitelist_patterns,
         blacklist_patterns=request.blacklist_patterns,
+        resume=request.resume,
+        capture_artifacts=request.capture_artifacts,
     )
     result = use_case.execute(
         request=dto,

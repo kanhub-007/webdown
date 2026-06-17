@@ -1,19 +1,12 @@
 """SQLite implementation of the page-error (per-page conversion status) repository."""
 
-from urllib.parse import urlparse
-
 from webdown.core.domain.entities.page_conversion_status import PageConversionStatus
 from webdown.core.domain.interfaces.page_error_repository import PageErrorRepository
+from webdown.core.domain.services.url_normalizer import normalize_host
 from webdown.infrastructure.repositories.mappers.page_conversion_status_mapper import (
     page_conversion_status_from_row,
 )
 from webdown.infrastructure.repositories.sqlite_connection_factory import SqliteConnectionFactory
-
-
-def _normalize_host(url: str) -> str:
-    """Return the hostname of a URL, ignoring a leading 'www.'."""
-    host = urlparse(url).hostname or ""
-    return host[4:] if host.startswith("www.") else host
 
 
 class SqlitePageErrorRepository(PageErrorRepository):
@@ -98,7 +91,7 @@ class SqlitePageErrorRepository(PageErrorRepository):
 
     def succeeded_urls(self, base_url: str) -> set[str]:
         """Return URLs converted successfully for a base_url (host-normalized)."""
-        target_host = _normalize_host(base_url)
+        target_host = normalize_host(base_url)
         with self._connection_factory.get_connection("markdown_storage.db") as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -109,11 +102,11 @@ class SqlitePageErrorRepository(PageErrorRepository):
                 """,
             )
             rows = cursor.fetchall()
-        return {row["url"] for row in rows if _normalize_host(row["url"]) == target_host}
+        return {row["url"] for row in rows if normalize_host(row["url"]) == target_host}
 
     def get_successful_markdown_by_base(self, base_url: str) -> dict[str, str]:
         """Return {url: markdown} for all successful pages under a base_url (cross-job)."""
-        target_host = _normalize_host(base_url)
+        target_host = normalize_host(base_url)
         with self._connection_factory.get_connection("markdown_storage.db") as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -127,5 +120,5 @@ class SqlitePageErrorRepository(PageErrorRepository):
         return {
             row["url"]: row["markdown"]
             for row in rows
-            if _normalize_host(row["url"]) == target_host
+            if normalize_host(row["url"]) == target_host
         }

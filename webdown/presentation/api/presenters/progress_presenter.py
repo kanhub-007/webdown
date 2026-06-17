@@ -22,4 +22,7 @@ class ProgressPresenter:
             created_at=result.created_at,
             updated_at=result.updated_at,
             error_message=result.error_message,
+            failed_pages=result.failed_pages,
+            total_available=result.total_available,
+            truncated=result.truncated,
         )
